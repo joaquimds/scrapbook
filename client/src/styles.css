@@ -1,0 +1,87 @@
+html,
+body,
+#root {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	font-family: monospace;
+}
+
+.canvas-root {
+	position: relative;
+	width: 100vw;
+	height: 100vh;
+	overflow: hidden;
+	background: #f5efe1;
+}
+
+.edge-layer {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.node-layer {
+	position: absolute;
+	inset: 0;
+}
+
+.node {
+	position: absolute;
+	transform: translate(-50%, -50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	user-select: none;
+	font-family: monospace;
+	font-size: 12px;
+	color: #1f2a44;
+}
+
+.node-label {
+	max-width: 140px;
+	text-align: center;
+	word-break: break-word;
+}
+
+/* On a person node with a photo, the label sits below the photo without
+   affecting the wrapper's bounding box — so collision + edge clipping
+   measure only the photo. */
+.person-node .node-label {
+	position: absolute;
+	top: 100%;
+	left: 50%;
+	transform: translateX(-50%);
+	margin-top: 4px;
+	white-space: nowrap;
+}
+
+.person-photo {
+	display: block;
+	max-width: 80px;
+	height: auto;
+	border: 1px solid #1f2a44;
+	background: #fff;
+}
+
+.scrap-photo {
+	display: block;
+	max-width: 140px;
+	height: auto;
+	border: 1px solid #1f2a44;
+	background: #fff;
+}
+
+.scrap-card {
+	max-width: 140px;
+	padding: 6px 8px;
+	background: #fffbe6;
+	border: 1px solid #a18a3f;
+	color: #3a2f1c;
+	text-align: center;
+	word-break: break-word;
+	white-space: normal;
+}

@@ -1,0 +1,44 @@
+{
+	"name": "scrapbook",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "concurrently -n client,server -c cyan,magenta \"npm run dev:client\" \"npm run dev:server\"",
+		"dev:client": "vite",
+		"dev:server": "tsx watch server/index.ts",
+		"build:client": "vite build",
+		"lint": "biome check --write . && tsc",
+		"db:migrate": "kysely migrate latest",
+		"db:migrate:make": "kysely migrate make",
+		"db:migrate:down": "kysely migrate down",
+		"db:migrate:list": "kysely migrate list",
+		"db:seed": "tsx server/scripts/seed.ts"
+	},
+	"dependencies": {
+		"@hono/node-server": "^2.0.0",
+		"@ngrok/ngrok": "^1.7.0",
+		"dotenv": "^17.4.2",
+		"hono": "^4.12.15",
+		"kysely": "^0.28.16",
+		"nanoid": "^5.1.9",
+		"pg": "^8.20.0",
+		"pino": "^10.3.1",
+		"pino-pretty": "^13.1.3",
+		"sharp": "^0.34.5",
+		"solid-js": "^1.9.12",
+		"zod": "^4.3.6",
+		"d3-force": "^3.0.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.13",
+		"@types/d3-force": "^3.0.10",
+		"@types/node": "^25.6.0",
+		"@types/pg": "^8.20.0",
+		"concurrently": "^9.2.1",
+		"kysely-ctl": "^0.20.0",
+		"tsx": "^4.21.0",
+		"typescript": "^6.0.3",
+		"vite": "^8.0.10",
+		"vite-plugin-solid": "^2.11.12"
+	}
+}
