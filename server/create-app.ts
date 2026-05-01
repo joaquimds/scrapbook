@@ -1,3 +1,4 @@
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { mediaRoute } from "~/server/routes/media.ts";
 import { peopleRoute } from "~/server/routes/people.ts";
@@ -11,5 +12,12 @@ export function createApp(): Hono {
 	app.route("/api/people", peopleRoute);
 	app.route("/api/webhooks/telegram", telegramWebhookRoute);
 	app.route("/media", mediaRoute);
+	app.use("/*", serveStatic({ root: "./dist" }));
+	app.use("/*", async (c, next) => {
+		if (c.req.path.startsWith("/api/") || c.req.path.startsWith("/media/")) {
+			return next();
+		}
+		return serveStatic({ root: "./dist", path: "index.html" })(c, next);
+	});
 	return app;
 }
