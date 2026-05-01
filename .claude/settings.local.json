@@ -1,5 +1,5 @@
 {
 	"permissions": {
-		"allow": ["Bash(npx tsc *)", "Bash(npx biome *)"]
+		"allow": ["Bash(npx tsc *)", "Bash(npx biome *)", "Bash(npm run *)"]
 	}
 }

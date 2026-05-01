@@ -5,6 +5,7 @@ export const IngestionStateSchema = z.enum([
 	"awaitingImageKind",
 	"awaitingFriends",
 	"awaitingFeaturedDecision",
+	"awaitingContactReply",
 ]);
 export type IngestionState = z.infer<typeof IngestionStateSchema>;
 
@@ -13,6 +14,7 @@ export const IngestionSessionSchema = z.object({
 	chatId: z.string(),
 	state: IngestionStateSchema,
 	pendingScrapIds: z.array(z.string()),
+	pendingPersonIds: z.array(z.string()),
 	createdAt: z.date(),
 	updatedAt: z.date(),
 });

@@ -1,4 +1,5 @@
-import { extname } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, extname, join } from "node:path";
 import { env } from "~/server/env.ts";
 import { logger } from "~/server/utils/logger.ts";
 
@@ -10,7 +11,10 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
 		logger.warn({ chatId, text }, "TELEGRAM_BOT_TOKEN not set — skipping Telegram send");
 		return;
 	}
-	logger.info({ chatId, textLength: text.length, preview: text.slice(0, 80) }, "sending Telegram message");
+	logger.info(
+		{ chatId, textLength: text.length, preview: text.slice(0, 80) },
+		"sending Telegram message",
+	);
 	const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
 	const res = await fetch(url, {
 		method: "POST",
@@ -40,20 +44,53 @@ export async function setTelegramWebhook(url: string): Promise<void> {
 	if (env.TELEGRAM_WEBHOOK_SECRET) {
 		body.secret_token = env.TELEGRAM_WEBHOOK_SECRET;
 	}
-	const res = await fetch(
-		`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/setWebhook`,
-		{
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(body),
-		},
-	);
+	const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/setWebhook`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	});
 	if (!res.ok) {
 		const text = await res.text();
 		logger.error({ status: res.status, text, url }, "Telegram setWebhook failed");
 		throw new Error(`Telegram setWebhook failed: ${res.status}`);
 	}
 	logger.info({ url }, "Telegram webhook registered");
+}
+
+// Sends a local file (path relative to STORAGE_ROOT) as a Telegram photo with
+// optional caption. Uses multipart/form-data — Telegram's /sendPhoto accepts
+// either a URL or a file upload, and we keep originals on local disk.
+export async function sendTelegramPhoto(
+	chatId: string,
+	relativePath: string,
+	caption?: string,
+): Promise<void> {
+	if (!env.TELEGRAM_BOT_TOKEN) {
+		logger.warn({ chatId, relativePath }, "TELEGRAM_BOT_TOKEN not set — skipping Telegram photo");
+		return;
+	}
+	const absolute = join(env.STORAGE_ROOT, relativePath);
+	const buffer = await readFile(absolute);
+	const filename = basename(absolute);
+	const form = new FormData();
+	form.set("chat_id", chatId);
+	if (caption) form.set("caption", caption);
+	form.set("photo", new Blob([new Uint8Array(buffer)]), filename);
+
+	logger.info(
+		{ chatId, relativePath, bytes: buffer.length, hasCaption: !!caption },
+		"sending Telegram photo",
+	);
+	const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+		method: "POST",
+		body: form,
+	});
+	if (!res.ok) {
+		const body = await res.text();
+		logger.error({ status: res.status, body }, "Telegram sendPhoto failed");
+		throw new Error(`Telegram sendPhoto failed: ${res.status}`);
+	}
+	logger.info({ chatId, relativePath }, "Telegram photo sent");
 }
 
 interface TelegramFile {

@@ -28,7 +28,7 @@ interface TelegramUpdate {
 // Telegram delivers an album as N separate updates that share a media_group_id.
 // We buffer them in memory for a short window, then dispatch as a single
 // IncomingMessage so the user is only prompted once for kind + tags.
-const ALBUM_DEBOUNCE_MS = 1500;
+const ALBUM_DEBOUNCE_MS = env.ALBUM_DEBOUNCE_MS;
 
 interface AlbumBuffer {
 	chatId: string;
@@ -38,6 +38,10 @@ interface AlbumBuffer {
 }
 
 const albumBuffers = new Map<string, AlbumBuffer>();
+
+export function resetAlbumBuffers(): void {
+	albumBuffers.clear();
+}
 
 export const telegramWebhookRoute = new Hono();
 
@@ -106,7 +110,7 @@ telegramWebhookRoute.post("/", async (c) => {
 
 		// Single photo — dispatch immediately.
 		logger.info({ updateId, fileId: largest.file_id }, "dispatching single photo");
-		dispatch({
+		await dispatch({
 			from: chatId,
 			text: caption,
 			media: [{ fileId: largest.file_id, messageSid: updateId }],
@@ -117,7 +121,7 @@ telegramWebhookRoute.post("/", async (c) => {
 
 	const text = message.text ?? message.caption ?? "";
 	logger.info({ updateId, textLength: text.length }, "dispatching text message");
-	dispatch({
+	await dispatch({
 		from: chatId,
 		text,
 		media: [],
@@ -135,19 +139,23 @@ function bufferAlbumPhoto(
 		clearTimeout(existing.timer);
 		existing.media.push({ fileId: item.fileId, messageSid: item.messageSid });
 		if (!existing.caption && item.caption) existing.caption = item.caption;
-		existing.timer = setTimeout(() => flushAlbum(groupId), ALBUM_DEBOUNCE_MS);
+		existing.timer = setTimeout(async () => {
+			await flushAlbum(groupId);
+		}, ALBUM_DEBOUNCE_MS);
 		return;
 	}
 	const buffer: AlbumBuffer = {
 		chatId: item.chatId,
 		media: [{ fileId: item.fileId, messageSid: item.messageSid }],
 		caption: item.caption,
-		timer: setTimeout(() => flushAlbum(groupId), ALBUM_DEBOUNCE_MS),
+		timer: setTimeout(async () => {
+			await flushAlbum(groupId);
+		}, ALBUM_DEBOUNCE_MS),
 	};
 	albumBuffers.set(groupId, buffer);
 }
 
-function flushAlbum(groupId: string): void {
+async function flushAlbum(groupId: string): Promise<void> {
 	const buffer = albumBuffers.get(groupId);
 	if (!buffer) return;
 	albumBuffers.delete(groupId);
@@ -156,7 +164,7 @@ function flushAlbum(groupId: string): void {
 		{ groupId, photoCount: buffer.media.length, chatId: buffer.chatId },
 		"flushing album buffer",
 	);
-	dispatch({
+	await dispatch({
 		from: buffer.chatId,
 		text: buffer.caption,
 		media: buffer.media,
@@ -164,12 +172,14 @@ function flushAlbum(groupId: string): void {
 	});
 }
 
-function dispatch(msg: IncomingMessage): void {
+async function dispatch(msg: IncomingMessage): Promise<void> {
 	logger.info(
 		{ from: msg.from, mediaCount: msg.media.length, messageSid: msg.messageSid },
 		"dispatching to ingestion",
 	);
-	handleIncoming(msg).catch((err) => {
+	try {
+		await handleIncoming(msg);
+	} catch (err) {
 		logger.error({ err, from: msg.from }, "ingestion failed");
-	});
+	}
 }

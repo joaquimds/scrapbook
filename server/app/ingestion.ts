@@ -1,3 +1,4 @@
+import { handleContactReply } from "~/server/app/reminders.ts";
 import {
 	deleteSession,
 	findActiveSession,
@@ -32,7 +33,12 @@ export interface IncomingMessage {
 
 export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 	logger.info(
-		{ from: msg.from, mediaCount: msg.media.length, textLength: msg.text.length, messageSid: msg.messageSid },
+		{
+			from: msg.from,
+			mediaCount: msg.media.length,
+			textLength: msg.text.length,
+			messageSid: msg.messageSid,
+		},
 		"handling incoming message",
 	);
 	if (msg.media.length > 0) {
@@ -50,7 +56,11 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 	const session = await findActiveSession(msg.from);
 	const text = msg.text.trim();
 	logger.info(
-		{ from: msg.from, sessionState: session?.state ?? null, pendingScrapIds: session?.pendingScrapIds.length ?? 0 },
+		{
+			from: msg.from,
+			sessionState: session?.state ?? null,
+			pendingScrapIds: session?.pendingScrapIds.length ?? 0,
+		},
 		"resolved ingestion session",
 	);
 
@@ -79,6 +89,14 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		return;
 	}
 
+	if (session.state === "awaitingContactReply") {
+		const handled = await handleContactReply(session, msg.from, text);
+		if (handled) return;
+		// fall through: empty text with no reply state — clear and prompt.
+		await sendTelegramMessage(msg.from, "Send me a quote, image, or song to scrap.");
+		return;
+	}
+
 	if (session.state === "awaitingImageKind") {
 		const kind = parseImageKind(text);
 		if (!kind) {
@@ -89,10 +107,7 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 			);
 			return;
 		}
-		logger.info(
-			{ from: msg.from, kind, scrapIds: session.pendingScrapIds },
-			"updating scrap kind",
-		);
+		logger.info({ from: msg.from, kind, scrapIds: session.pendingScrapIds }, "updating scrap kind");
 		for (const scrapId of session.pendingScrapIds) {
 			await updateScrapKind(scrapId, kind);
 		}
@@ -119,7 +134,11 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		logger.info({ from: msg.from, names }, "parsed friend names");
 		const people = await resolveOrCreatePeople(names);
 		logger.info(
-			{ from: msg.from, peopleIds: people.map((p) => p.id), peopleNames: people.map((p) => p.name) },
+			{
+				from: msg.from,
+				peopleIds: people.map((p) => p.id),
+				peopleNames: people.map((p) => p.name),
+			},
 			"resolved people",
 		);
 		for (const scrapId of session.pendingScrapIds) {

@@ -22,7 +22,9 @@ export async function upsertSession(input: {
 	chatId: string;
 	state: IngestionState;
 	pendingScrapIds: string[];
+	pendingPersonIds?: string[];
 }): Promise<IngestionSession> {
+	const pendingPersonIds = input.pendingPersonIds ?? [];
 	const existing = await db
 		.selectFrom("ingestionSessions")
 		.selectAll()
@@ -34,6 +36,7 @@ export async function upsertSession(input: {
 			.set({
 				state: input.state,
 				pendingScrapIds: input.pendingScrapIds,
+				pendingPersonIds,
 			})
 			.where("id", "=", existing.id)
 			.returningAll()
@@ -46,6 +49,7 @@ export async function upsertSession(input: {
 			chatId: input.chatId,
 			state: input.state,
 			pendingScrapIds: input.pendingScrapIds,
+			pendingPersonIds,
 		})
 		.returningAll()
 		.executeTakeFirstOrThrow();

@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { z } from "zod";
 
 const EnvSchema = z.object({
@@ -12,6 +11,9 @@ const EnvSchema = z.object({
 	TELEGRAM_ALLOWED_CHAT_ID: z.string().optional(),
 	NGROK_AUTHTOKEN: z.string().optional(),
 	PUBLIC_BASE_URL: z.string().url().default("http://localhost:3000"),
+	REMINDER_CRON: z.string().default("0 9 * * *"),
+	REMINDER_COOLDOWN_DAYS: z.coerce.number().int().nonnegative().default(14),
+	ALBUM_DEBOUNCE_MS: z.coerce.number().int().nonnegative().default(1500),
 });
 
 export const env = EnvSchema.parse(process.env);
