@@ -36,7 +36,7 @@ export const ScrapNode: Component<{ id: string }> = (props) => {
 					style={{ left: `${d().pos.x}px`, top: `${d().pos.y}px` }}
 				>
 					<Show
-						when={d().scrap.kind === "photo" && d().scrap.thumbnailPath}
+						when={d().scrap.thumbnailPath}
 						fallback={<div class="scrap-card">{d().scrap.body ?? d().scrap.kind}</div>}
 					>
 						{(thumb) => (

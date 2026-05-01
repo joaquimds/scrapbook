@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { handleIncoming } from "~/server/app/ingestion.ts";
+import { handleIncoming, type IncomingMessage } from "~/server/app/ingestion.ts";
 import { env } from "~/server/env.ts";
 import { logger } from "~/server/utils/logger.ts";
 
@@ -17,12 +17,27 @@ interface TelegramMessage {
 	text?: string;
 	caption?: string;
 	photo?: TelegramPhotoSize[];
+	media_group_id?: string;
 }
 
 interface TelegramUpdate {
 	update_id: number;
 	message?: TelegramMessage;
 }
+
+// Telegram delivers an album as N separate updates that share a media_group_id.
+// We buffer them in memory for a short window, then dispatch as a single
+// IncomingMessage so the user is only prompted once for kind + tags.
+const ALBUM_DEBOUNCE_MS = 1500;
+
+interface AlbumBuffer {
+	chatId: string;
+	media: { fileId: string; messageSid: string }[];
+	caption: string;
+	timer: NodeJS.Timeout;
+}
+
+const albumBuffers = new Map<string, AlbumBuffer>();
 
 export const telegramWebhookRoute = new Hono();
 
@@ -38,9 +53,13 @@ telegramWebhookRoute.post("/", async (c) => {
 	}
 
 	const update = (await c.req.json()) as TelegramUpdate;
+	logger.info(
+		{ updateId: update.update_id, hasMessage: !!update.message },
+		"Telegram webhook received",
+	);
 	const message = update.message;
 	if (!message) {
-		// Edits, channel posts, callback queries — ignored for now.
+		logger.info({ updateId: update.update_id }, "Telegram update has no message — ignored");
 		return c.json({ ok: true });
 	}
 
@@ -50,26 +69,107 @@ telegramWebhookRoute.post("/", async (c) => {
 		return c.json({ ok: true });
 	}
 
-	// Telegram delivers photos as an array of size variants of the same image.
-	// Pick the largest by file_size; for multi-photo messages each photo arrives
-	// as its own update, so the array here represents one logical image.
-	const media = message.photo
-		? [
-				{
-					fileId:
-						[...message.photo].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0))[0]
-							?.file_id ?? "",
-					contentType: "image/jpeg",
-				},
-			].filter((m) => m.fileId)
-		: [];
+	const updateId = String(update.update_id);
+	logger.info(
+		{
+			updateId,
+			chatId,
+			messageId: message.message_id,
+			textLength: (message.text ?? message.caption ?? "").length,
+			photoVariants: message.photo?.length ?? 0,
+			mediaGroupId: message.media_group_id,
+		},
+		"Telegram message accepted",
+	);
 
-	await handleIncoming({
+	if (message.photo && message.photo.length > 0) {
+		// Pick the largest size variant (Telegram sends 3-4 thumbnails of the same image).
+		const largest = [...message.photo].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0))[0];
+		if (!largest) {
+			return c.json({ ok: true });
+		}
+		const caption = message.caption ?? "";
+
+		if (message.media_group_id) {
+			logger.info(
+				{ updateId, mediaGroupId: message.media_group_id, fileId: largest.file_id },
+				"buffering album photo",
+			);
+			bufferAlbumPhoto(message.media_group_id, {
+				chatId,
+				fileId: largest.file_id,
+				messageSid: updateId,
+				caption,
+			});
+			return c.json({ ok: true });
+		}
+
+		// Single photo — dispatch immediately.
+		logger.info({ updateId, fileId: largest.file_id }, "dispatching single photo");
+		dispatch({
+			from: chatId,
+			text: caption,
+			media: [{ fileId: largest.file_id, messageSid: updateId }],
+			messageSid: updateId,
+		});
+		return c.json({ ok: true });
+	}
+
+	const text = message.text ?? message.caption ?? "";
+	logger.info({ updateId, textLength: text.length }, "dispatching text message");
+	dispatch({
 		from: chatId,
-		text: message.text ?? message.caption ?? "",
-		media: media.map((m) => ({ url: m.fileId, contentType: m.contentType })),
-		messageSid: String(update.update_id),
+		text,
+		media: [],
+		messageSid: updateId,
 	});
-
 	return c.json({ ok: true });
 });
+
+function bufferAlbumPhoto(
+	groupId: string,
+	item: { chatId: string; fileId: string; messageSid: string; caption: string },
+): void {
+	const existing = albumBuffers.get(groupId);
+	if (existing) {
+		clearTimeout(existing.timer);
+		existing.media.push({ fileId: item.fileId, messageSid: item.messageSid });
+		if (!existing.caption && item.caption) existing.caption = item.caption;
+		existing.timer = setTimeout(() => flushAlbum(groupId), ALBUM_DEBOUNCE_MS);
+		return;
+	}
+	const buffer: AlbumBuffer = {
+		chatId: item.chatId,
+		media: [{ fileId: item.fileId, messageSid: item.messageSid }],
+		caption: item.caption,
+		timer: setTimeout(() => flushAlbum(groupId), ALBUM_DEBOUNCE_MS),
+	};
+	albumBuffers.set(groupId, buffer);
+}
+
+function flushAlbum(groupId: string): void {
+	const buffer = albumBuffers.get(groupId);
+	if (!buffer) return;
+	albumBuffers.delete(groupId);
+	const firstSid = buffer.media[0]?.messageSid ?? "";
+	logger.info(
+		{ groupId, photoCount: buffer.media.length, chatId: buffer.chatId },
+		"flushing album buffer",
+	);
+	dispatch({
+		from: buffer.chatId,
+		text: buffer.caption,
+		media: buffer.media,
+		messageSid: firstSid,
+	});
+}
+
+function dispatch(msg: IncomingMessage): void {
+	logger.info(
+		{ from: msg.from, mediaCount: msg.media.length, messageSid: msg.messageSid },
+		"dispatching to ingestion",
+	);
+	handleIncoming(msg).catch((err) => {
+		logger.error({ err, from: msg.from }, "ingestion failed");
+	});
+}

@@ -1,3 +1,4 @@
+import { extname } from "node:path";
 import { env } from "~/server/env.ts";
 import { logger } from "~/server/utils/logger.ts";
 
@@ -9,6 +10,7 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
 		logger.warn({ chatId, text }, "TELEGRAM_BOT_TOKEN not set — skipping Telegram send");
 		return;
 	}
+	logger.info({ chatId, textLength: text.length, preview: text.slice(0, 80) }, "sending Telegram message");
 	const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
 	const res = await fetch(url, {
 		method: "POST",
@@ -20,4 +22,74 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
 		logger.error({ status: res.status, body }, "Telegram send failed");
 		throw new Error(`Telegram send failed: ${res.status}`);
 	}
+	logger.info({ chatId }, "Telegram message sent");
+}
+
+// Registers (overwriting any existing registration) the Telegram webhook for
+// this bot. `drop_pending_updates` ensures we don't replay a queue of updates
+// from a previous tunnel URL.
+export async function setTelegramWebhook(url: string): Promise<void> {
+	if (!env.TELEGRAM_BOT_TOKEN) {
+		logger.warn("TELEGRAM_BOT_TOKEN not set — skipping webhook registration");
+		return;
+	}
+	const body: Record<string, unknown> = {
+		url,
+		drop_pending_updates: true,
+	};
+	if (env.TELEGRAM_WEBHOOK_SECRET) {
+		body.secret_token = env.TELEGRAM_WEBHOOK_SECRET;
+	}
+	const res = await fetch(
+		`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/setWebhook`,
+		{
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		},
+	);
+	if (!res.ok) {
+		const text = await res.text();
+		logger.error({ status: res.status, text, url }, "Telegram setWebhook failed");
+		throw new Error(`Telegram setWebhook failed: ${res.status}`);
+	}
+	logger.info({ url }, "Telegram webhook registered");
+}
+
+interface TelegramFile {
+	file_path?: string;
+}
+
+// Telegram delivers files in two steps: getFile resolves a file_id to a
+// `file_path`, then we download from /file/bot<token>/<file_path>. The download
+// URL is unauthenticated but expires; always re-resolve before each download.
+export async function downloadTelegramFile(
+	fileId: string,
+): Promise<{ buffer: Buffer; ext: string }> {
+	if (!env.TELEGRAM_BOT_TOKEN) {
+		throw new Error("TELEGRAM_BOT_TOKEN not set — cannot download file");
+	}
+	logger.info({ fileId }, "resolving Telegram file path");
+	const metaRes = await fetch(
+		`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${encodeURIComponent(fileId)}`,
+	);
+	if (!metaRes.ok) {
+		throw new Error(`Telegram getFile failed: ${metaRes.status}`);
+	}
+	const meta = (await metaRes.json()) as { ok: boolean; result?: TelegramFile };
+	const filePath = meta.result?.file_path;
+	if (!filePath) {
+		throw new Error("Telegram getFile returned no file_path");
+	}
+	logger.info({ fileId, filePath }, "downloading Telegram file");
+	const fileRes = await fetch(
+		`https://api.telegram.org/file/bot${env.TELEGRAM_BOT_TOKEN}/${filePath}`,
+	);
+	if (!fileRes.ok) {
+		throw new Error(`Telegram file download failed: ${fileRes.status}`);
+	}
+	const buffer = Buffer.from(await fileRes.arrayBuffer());
+	const ext = extname(filePath).replace(/^\./, "").toLowerCase() || "jpg";
+	logger.info({ fileId, bytes: buffer.length, ext }, "Telegram file downloaded");
+	return { buffer, ext };
 }

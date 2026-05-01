@@ -155,14 +155,14 @@ All under `/api`, JSON, Zod-validated.
 
 - [x] **Phase 0 — bootstrap (scaffolded, awaiting `bun install` + run-time verification)**: repo, single root `tsconfig.json` with `~/*` alias and combined Bun + DOM lib/types, Biome with `useImportType`, Vite + Solid, Hono on Bun, Kysely + `kysely-bun-sqlite` + `CamelCasePlugin` + custom `JSONPlugin` (auto-detects `json` columns), `kysely-ctl` for migrations, ngrok auto-tunnel in dev, pino logger, `.env.example`, dev scripts (`bun run dev` via `concurrently`).
 - [x] **Phase 1 — minimum viable slice**: manual `POST /api/scraps` + `POST/PATCH /api/people`, paginated `GET /api/scraps` and `GET /api/people` (cursor-based), repositories for scraps / people / ingestion-sessions, ingestion state machine (text-only branches: idle → awaitingFriends → optional awaitingFeaturedDecision), Telegram bot send + webhook with secret-token verification and single-chat allow-list, frontend api wrapper + Solid stores + derived graph memo + idle-scheduled paginator + d3-force simulation + minimal SVG canvas with scrap/person nodes and red-string edges.
-- [ ] **Phase 2 — images**: image messages, kind disambiguation, multi-image splitting, sharp thumbnails, `/media` serving.
-- [ ] **Phase 3 — featured photos**: featured-photo prompt branch, person-node uses featured scrap.
+- [x] **Phase 2 — images**: image messages, kind disambiguation (photo / meme / text_content), multi-image splitting via Telegram `media_group_id` debounce (1.5s), sharp thumbnails (600px webp), `/media` serving. Captions become the scrap body.
+- [x] **Phase 3 — featured photos**: featured-photo prompt branch (`awaitingFeaturedDecision`) after single-photo + single-tag tagging; `setFeaturedScrap` repo helper; `PersonNode` renders the featured scrap's thumbnail with the label absolute-positioned below so the photo defines the bounding box; graph derivation excludes featured scraps from standalone nodes/edges so they don't double-render.
 - [ ] **Phase 4 — reminders**: contactLog, scheduler, selection algorithm, reminder messages.
 - [ ] **Phase 5 — polish**: detective-board aesthetic, pan/zoom, edit affordances, person-merge UI.
 
 ### Current status
 
-**Phase 1 complete.** Server end-to-end smoke-tested via `curl POST /api/scraps` → `GET /api/scraps`. Lint + typecheck (`bun run lint`) clean. Frontend not yet manually verified in the browser — open `http://localhost:5173` and confirm the test scrap appears as a yellow rect node. After that, start **Phase 2 — images**: image messages, kind disambiguation (photo / meme / text-content), multi-image splitting (one scrap per image with shared tags), `sharp` thumbnails, `/media` static serving, image rendering on scrap nodes.
+**Phases 1–3 complete.** Server end-to-end smoke-tested via `curl POST /api/scraps` → `GET /api/scraps`. Lint + typecheck (`bun run lint`) clean. Frontend not yet manually verified in the browser — open `http://localhost:5173` and confirm the test scrap appears as a yellow rect node. After that, start **Phase 2 — images**: image messages, kind disambiguation (photo / meme / text-content), multi-image splitting (one scrap per image with shared tags), `sharp` thumbnails, `/media` static serving, image rendering on scrap nodes.
 
 ## Verification (when phases land)
 

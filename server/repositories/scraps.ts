@@ -9,6 +9,7 @@ export interface PageOfScraps {
 }
 
 interface CreateScrapInput {
+	id?: string;
 	kind: ScrapKind;
 	body: string | null;
 	mediaPath?: string | null;
@@ -19,7 +20,7 @@ interface CreateScrapInput {
 }
 
 export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
-	const id = newId();
+	const id = input.id ?? newId();
 	const peopleIds = input.peopleIds ?? [];
 
 	const row = await db.transaction().execute(async (trx) => {
@@ -47,6 +48,10 @@ export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
 	});
 
 	return { ...row, peopleIds };
+}
+
+export async function updateScrapKind(scrapId: string, kind: ScrapKind): Promise<void> {
+	await db.updateTable("scraps").set({ kind }).where("id", "=", scrapId).execute();
 }
 
 export async function setScrapPeople(scrapId: string, peopleIds: string[]): Promise<void> {
