@@ -3,6 +3,10 @@ import { basename, extname, join } from "node:path";
 import { env } from "~/server/env.ts";
 import { logger } from "~/server/utils/logger.ts";
 
+// Resolves an app-shaped media URL to a publicly-reachable URL or local file.
+// - https://… → Telegram fetches it directly.
+// - /media/<rel> → local-driver path; we read from STORAGE_ROOT and upload as multipart.
+
 // Telegram Bot API — direct fetch. Single REST call per send; the SDK isn't
 // worth pulling in for the surface area we use.
 
@@ -57,18 +61,37 @@ export async function setTelegramWebhook(url: string): Promise<void> {
 	logger.info({ url }, "Telegram webhook registered");
 }
 
-// Sends a local file (path relative to STORAGE_ROOT) as a Telegram photo with
-// optional caption. Uses multipart/form-data — Telegram's /sendPhoto accepts
-// either a URL or a file upload, and we keep originals on local disk.
+// Sends a photo by URL. For https:// URLs, Telegram fetches it server-side.
+// For app-internal /media/<rel> paths (local driver), reads from STORAGE_ROOT
+// and uploads as multipart/form-data.
 export async function sendTelegramPhoto(
 	chatId: string,
-	relativePath: string,
+	mediaUrl: string,
 	caption?: string,
 ): Promise<void> {
 	if (!env.TELEGRAM_BOT_TOKEN) {
-		logger.warn({ chatId, relativePath }, "TELEGRAM_BOT_TOKEN not set — skipping Telegram photo");
+		logger.warn({ chatId, mediaUrl }, "TELEGRAM_BOT_TOKEN not set — skipping Telegram photo");
 		return;
 	}
+	const apiUrl = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendPhoto`;
+
+	if (/^https?:\/\//.test(mediaUrl)) {
+		logger.info({ chatId, mediaUrl, hasCaption: !!caption }, "sending Telegram photo by URL");
+		const res = await fetch(apiUrl, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ chat_id: chatId, photo: mediaUrl, caption }),
+		});
+		if (!res.ok) {
+			const body = await res.text();
+			logger.error({ status: res.status, body }, "Telegram sendPhoto failed");
+			throw new Error(`Telegram sendPhoto failed: ${res.status}`);
+		}
+		logger.info({ chatId, mediaUrl }, "Telegram photo sent");
+		return;
+	}
+
+	const relativePath = mediaUrl.replace(/^\/media\//, "");
 	const absolute = join(env.STORAGE_ROOT, relativePath);
 	const buffer = await readFile(absolute);
 	const filename = basename(absolute);
@@ -79,12 +102,9 @@ export async function sendTelegramPhoto(
 
 	logger.info(
 		{ chatId, relativePath, bytes: buffer.length, hasCaption: !!caption },
-		"sending Telegram photo",
+		"sending Telegram photo (multipart)",
 	);
-	const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-		method: "POST",
-		body: form,
-	});
+	const res = await fetch(apiUrl, { method: "POST", body: form });
 	if (!res.ok) {
 		const body = await res.text();
 		logger.error({ status: res.status, body }, "Telegram sendPhoto failed");

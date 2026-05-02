@@ -1,11 +1,10 @@
 import "dotenv/config";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { db } from "~/server/db/connection.ts";
-import { env } from "~/server/env.ts";
 import { createPerson, setFeaturedScrap } from "~/server/repositories/people.ts";
 import { createScrap } from "~/server/repositories/scraps.ts";
+import { saveOriginal } from "~/server/services/media-storage/index.ts";
 import { logger } from "~/server/utils/logger.ts";
+import { newId } from "~/shared/utils/id.ts";
 
 const PEOPLE: Array<{ name: string; avatarId: number }> = [
 	{ name: "Paul", avatarId: 12 },
@@ -30,25 +29,13 @@ const PHOTOS: Array<{ seed: string; body: string; tags: string[] }> = [
 	{ seed: "all-three-dinner", body: "dinner at linda's", tags: ["Paul", "James", "Linda"] },
 ];
 
-async function downloadHeadshot(avatarId: number, dest: string): Promise<void> {
-	const url = `https://i.pravatar.cc/600?img=${avatarId}`;
+async function fetchBuffer(url: string): Promise<Buffer> {
 	const res = await fetch(url, { redirect: "follow" });
 	if (!res.ok) throw new Error(`fetch ${url} failed: ${res.status}`);
-	const buf = Buffer.from(await res.arrayBuffer());
-	await writeFile(dest, buf);
-}
-
-async function downloadStockPhoto(seed: string, dest: string): Promise<void> {
-	const url = `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/600`;
-	const res = await fetch(url, { redirect: "follow" });
-	if (!res.ok) throw new Error(`fetch ${url} failed: ${res.status}`);
-	const buf = Buffer.from(await res.arrayBuffer());
-	await writeFile(dest, buf);
+	return Buffer.from(await res.arrayBuffer());
 }
 
 async function main() {
-	await mkdir(env.STORAGE_ROOT, { recursive: true });
-
 	logger.info("seeding people");
 	const people = new Map<string, { id: string; avatarId: number }>();
 	for (const { name, avatarId } of PEOPLE) {
@@ -60,15 +47,14 @@ async function main() {
 	for (const { name, avatarId } of PEOPLE) {
 		const person = people.get(name);
 		if (!person) continue;
-		const filename = `${person.id}.jpg`;
-		const fullPath = path.join(env.STORAGE_ROOT, filename);
-		await downloadHeadshot(avatarId, fullPath);
-
+		const buffer = await fetchBuffer(`https://i.pravatar.cc/600?img=${avatarId}`);
+		const id = newId();
+		const { mediaUrl } = await saveOriginal({ id, buffer, ext: "jpg" });
 		const scrap = await createScrap({
+			id,
 			kind: "photo",
 			body: `${name} in their natural habitat`,
-			mediaPath: filename,
-			thumbnailPath: filename,
+			mediaUrl,
 			source: "manual",
 			peopleIds: [person.id],
 		});
@@ -80,14 +66,16 @@ async function main() {
 		const peopleIds = photo.tags
 			.map((n) => people.get(n)?.id)
 			.filter((id): id is string => Boolean(id));
-		const filename = `${photo.seed}.jpg`;
-		const fullPath = path.join(env.STORAGE_ROOT, filename);
-		await downloadStockPhoto(photo.seed, fullPath);
+		const buffer = await fetchBuffer(
+			`https://picsum.photos/seed/${encodeURIComponent(photo.seed)}/800/600`,
+		);
+		const id = newId();
+		const { mediaUrl } = await saveOriginal({ id, buffer, ext: "jpg" });
 		await createScrap({
+			id,
 			kind: "photo",
 			body: photo.body,
-			mediaPath: filename,
-			thumbnailPath: filename,
+			mediaUrl,
 			source: "manual",
 			peopleIds,
 		});

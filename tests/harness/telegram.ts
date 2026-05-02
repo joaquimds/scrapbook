@@ -5,10 +5,14 @@ export function sentMessages(): Array<{ chatId: string; text: string }> {
 	return vi.mocked(tg.sendTelegramMessage).mock.calls.map(([chatId, text]) => ({ chatId, text }));
 }
 
-export function sentPhotos(): Array<{ chatId: string; path: string; caption: string | undefined }> {
-	return vi.mocked(tg.sendTelegramPhoto).mock.calls.map(([chatId, path, caption]) => ({
+export function sentPhotos(): Array<{
+	chatId: string;
+	mediaUrl: string;
+	caption: string | undefined;
+}> {
+	return vi.mocked(tg.sendTelegramPhoto).mock.calls.map(([chatId, mediaUrl, caption]) => ({
 		chatId,
-		path,
+		mediaUrl,
 		caption,
 	}));
 }

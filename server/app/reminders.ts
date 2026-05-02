@@ -44,9 +44,9 @@ export async function runDailyReminder(): Promise<void> {
 		"runDailyReminder: sending reminder",
 	);
 
-	if (scrap?.mediaPath) {
+	if (scrap?.mediaUrl) {
 		try {
-			await sendTelegramPhoto(chatId, scrap.mediaPath, caption);
+			await sendTelegramPhoto(chatId, scrap.mediaUrl, caption);
 		} catch (err) {
 			logger.error({ err, personId: person.id }, "photo send failed — falling back to text");
 			await sendTelegramMessage(chatId, caption);

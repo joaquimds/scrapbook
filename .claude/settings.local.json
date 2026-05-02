@@ -1,5 +1,11 @@
 {
-	"permissions": {
-		"allow": ["Bash(npx tsc *)", "Bash(npx biome *)", "Bash(npm run *)"]
-	}
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npx biome *)",
+      "Bash(npm run *)",
+      "Bash(npx vitest *)",
+      "Bash(npm test *)"
+    ]
+  }
 }

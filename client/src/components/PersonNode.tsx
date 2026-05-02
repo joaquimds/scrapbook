@@ -10,7 +10,7 @@ export const PersonNode: Component<{ id: string }> = (props) => {
 		const person = peopleStore.byId[props.id];
 		if (!pos || !person) return undefined;
 		const featured = person.featuredScrapId ? scrapsStore.byId[person.featuredScrapId] : undefined;
-		const thumb = featured?.thumbnailPath ?? null;
+		const thumb = featured?.thumbnailUrl ?? null;
 		return { pos, person, thumb };
 	};
 

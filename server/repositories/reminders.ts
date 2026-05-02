@@ -1,5 +1,6 @@
 import { sql } from "kysely";
 import { db } from "~/server/db/connection.ts";
+import { toClientMediaUrl } from "~/server/utils/media-urls.ts";
 import type { Person } from "~/shared/models/Person.ts";
 import { newId } from "~/shared/utils/id.ts";
 
@@ -49,8 +50,7 @@ export async function pickPersonDueForReminder(opts: {
 // Featured first; otherwise the most recent photo tagged with the person; null if neither exists.
 export async function pickReminderScrap(personId: string): Promise<{
 	id: string;
-	mediaPath: string | null;
-	thumbnailPath: string | null;
+	mediaUrl: string | null;
 	body: string | null;
 } | null> {
 	const person = await db
@@ -62,10 +62,10 @@ export async function pickReminderScrap(personId: string): Promise<{
 	if (person?.featuredScrapId) {
 		const scrap = await db
 			.selectFrom("scraps")
-			.select(["id", "mediaPath", "thumbnailPath", "body"])
+			.select(["id", "mediaUrl", "body"])
 			.where("id", "=", person.featuredScrapId)
 			.executeTakeFirst();
-		if (scrap) return scrap;
+		if (scrap) return shapeMedia(scrap);
 	}
 
 	const photo = await db
@@ -73,13 +73,17 @@ export async function pickReminderScrap(personId: string): Promise<{
 		.innerJoin("scrapPeople as sp", "sp.scrapId", "s.id")
 		.where("sp.personId", "=", personId)
 		.where("s.kind", "=", "photo")
-		.where("s.mediaPath", "is not", null)
-		.select(["s.id", "s.mediaPath", "s.thumbnailPath", "s.body"])
+		.where("s.mediaUrl", "is not", null)
+		.select(["s.id", "s.mediaUrl", "s.body"])
 		.orderBy("s.createdAt", "desc")
 		.limit(1)
 		.executeTakeFirst();
 
-	return photo ?? null;
+	return photo ? shapeMedia(photo) : null;
+}
+
+function shapeMedia<T extends { mediaUrl: string | null }>(row: T): T {
+	return { ...row, mediaUrl: row.mediaUrl ? toClientMediaUrl(row.mediaUrl) : null };
 }
 
 export async function recordReminderSent(personId: string, scrapId: string | null): Promise<void> {

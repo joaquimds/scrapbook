@@ -41,12 +41,12 @@ describe("runDailyReminder", () => {
 		expect(messages.some((m) => m.text.includes("TextPerson"))).toBe(true);
 	});
 
-	it("sends a photo when person has a mediaPath scrap", async () => {
+	it("sends a photo when person has a mediaUrl scrap", async () => {
 		const personId = await createPersonDue("PhotoPerson");
 		const scrap = await createScrap({
 			kind: "photo",
 			body: null,
-			mediaPath: "scraps/2024/01/photo.jpg",
+			mediaUrl: "file:///tmp/scraps/2024/01/photo.jpg",
 			source: "manual",
 		});
 		await addScrapPeople(scrap.id, [personId]);
@@ -55,7 +55,7 @@ describe("runDailyReminder", () => {
 
 		const photos = sentPhotos();
 		expect(photos.length).toBeGreaterThanOrEqual(1);
-		expect(photos.some((p) => p.path === "scraps/2024/01/photo.jpg")).toBe(true);
+		expect(photos.some((p) => p.mediaUrl.endsWith("/scraps/2024/01/photo.jpg"))).toBe(true);
 	});
 
 	it("falls back to text when sendTelegramPhoto throws", async () => {
@@ -63,7 +63,7 @@ describe("runDailyReminder", () => {
 		const scrap = await createScrap({
 			kind: "photo",
 			body: null,
-			mediaPath: "scraps/2024/01/photo.jpg",
+			mediaUrl: "file:///tmp/scraps/2024/01/photo.jpg",
 			source: "manual",
 		});
 		await addScrapPeople(scrap.id, [personId]);

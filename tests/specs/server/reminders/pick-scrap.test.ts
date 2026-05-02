@@ -16,7 +16,7 @@ describe("pickReminderScrap", () => {
 		const scrap2 = await createScrap({
 			kind: "photo",
 			body: null,
-			mediaPath: "scraps/2024/01/x.jpg",
+			mediaUrl: "file:///tmp/scraps/2024/01/x.jpg",
 			source: "manual",
 		});
 		await addScrapPeople(scrap1.id, [person.id]);
@@ -27,18 +27,18 @@ describe("pickReminderScrap", () => {
 		expect(result?.id).toBe(scrap1.id);
 	});
 
-	it("falls back to most recent photo with mediaPath", async () => {
+	it("falls back to most recent photo with mediaUrl", async () => {
 		const person = await createPerson({ name: "Photos" });
 		const older = await createScrap({
 			kind: "photo",
 			body: null,
-			mediaPath: "scraps/2024/01/old.jpg",
+			mediaUrl: "file:///tmp/scraps/2024/01/old.jpg",
 			source: "manual",
 		});
 		const newer = await createScrap({
 			kind: "photo",
 			body: null,
-			mediaPath: "scraps/2024/01/new.jpg",
+			mediaUrl: "file:///tmp/scraps/2024/01/new.jpg",
 			source: "manual",
 		});
 		await addScrapPeople(older.id, [person.id]);

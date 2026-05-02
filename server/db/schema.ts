@@ -11,7 +11,7 @@ import type { Scrap } from "~/shared/models/Scrap.ts";
 // or update them. `peopleIds` is a denormalised join, added at the repository
 // layer.
 
-export type ScrapsTable = Omit<Scrap, "createdAt" | "peopleIds"> & {
+export type ScrapsTable = Omit<Scrap, "createdAt" | "peopleIds" | "thumbnailUrl"> & {
 	createdAt: GeneratedAlways<Date>;
 };
 

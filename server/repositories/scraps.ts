@@ -1,4 +1,5 @@
 import { db } from "~/server/db/connection.ts";
+import { toClientMediaUrl, toClientThumbnailUrl } from "~/server/utils/media-urls.ts";
 import { type Cursor, encodeCursor } from "~/server/utils/pagination.ts";
 import type { Scrap, ScrapKind, ScrapSource } from "~/shared/models/Scrap.ts";
 import { newId } from "~/shared/utils/id.ts";
@@ -12,11 +13,20 @@ interface CreateScrapInput {
 	id?: string;
 	kind: ScrapKind;
 	body: string | null;
-	mediaPath?: string | null;
-	thumbnailPath?: string | null;
+	mediaUrl?: string | null;
 	source: ScrapSource;
 	externalMessageId?: string | null;
 	peopleIds?: string[];
+}
+
+interface ScrapRow {
+	id: string;
+	kind: ScrapKind;
+	body: string | null;
+	mediaUrl: string | null;
+	source: ScrapSource;
+	externalMessageId: string | null;
+	createdAt: Date;
 }
 
 export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
@@ -30,8 +40,7 @@ export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
 				id,
 				kind: input.kind,
 				body: input.body,
-				mediaPath: input.mediaPath ?? null,
-				thumbnailPath: input.thumbnailPath ?? null,
+				mediaUrl: input.mediaUrl ?? null,
 				source: input.source,
 				externalMessageId: input.externalMessageId ?? null,
 			})
@@ -47,7 +56,7 @@ export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
 		return inserted;
 	});
 
-	return { ...row, peopleIds };
+	return shape(row, peopleIds);
 }
 
 export async function updateScrapKind(scrapId: string, kind: ScrapKind): Promise<void> {
@@ -122,11 +131,28 @@ export async function listScrapsPage(opts: {
 	return { items, nextCursor };
 }
 
-async function hydrate(row: Omit<Scrap, "peopleIds">): Promise<Scrap> {
+async function hydrate(row: ScrapRow): Promise<Scrap> {
 	const links = await db
 		.selectFrom("scrapPeople")
 		.select("personId")
 		.where("scrapId", "=", row.id)
 		.execute();
-	return { ...row, peopleIds: links.map((l) => l.personId) };
+	return shape(
+		row,
+		links.map((l) => l.personId),
+	);
+}
+
+function shape(row: ScrapRow, peopleIds: string[]): Scrap {
+	return {
+		id: row.id,
+		kind: row.kind,
+		body: row.body,
+		mediaUrl: row.mediaUrl ? toClientMediaUrl(row.mediaUrl) : null,
+		thumbnailUrl: row.mediaUrl ? toClientThumbnailUrl(row.mediaUrl) : null,
+		source: row.source,
+		externalMessageId: row.externalMessageId,
+		createdAt: row.createdAt,
+		peopleIds,
+	};
 }

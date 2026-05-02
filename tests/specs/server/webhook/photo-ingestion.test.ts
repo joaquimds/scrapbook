@@ -1,14 +1,10 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { db } from "~/server/db/connection.ts";
 import { webhook } from "~/tests/harness/app.ts";
 import { photoUpdate } from "~/tests/harness/fixtures.ts";
 import { sentMessages } from "~/tests/harness/telegram.ts";
-
-function storageRoot(): string {
-	return process.env.STORAGE_ROOT ?? "/tmp/scrapbook-test";
-}
 
 describe("Single photo ingestion", () => {
 	it("downloads, saves original and thumbnail, creates scrap, sets awaitingImageKind session", async () => {
@@ -24,10 +20,12 @@ describe("Single photo ingestion", () => {
 		expect(scrap.body).toBe("nice pic");
 		expect(scrap.source).toBe("telegram");
 
-		const { mediaPath, thumbnailPath } = scrap;
-		if (!mediaPath || !thumbnailPath) throw new Error("expected media + thumbnail paths");
-		expect(existsSync(join(storageRoot(), mediaPath))).toBe(true);
-		expect(existsSync(join(storageRoot(), thumbnailPath))).toBe(true);
+		const { mediaUrl, id } = scrap;
+		if (!mediaUrl) throw new Error("expected media url");
+		expect(mediaUrl).toMatch(/^file:\/\/.*scraps\/\d{4}\/\d{2}\/.+\.[a-z0-9]+$/);
+		expect(existsSync(fileURLToPath(mediaUrl))).toBe(true);
+		const thumbAbs = fileURLToPath(mediaUrl).replace(/scraps\/.+$/, `thumbnails/${id}.webp`);
+		expect(existsSync(thumbAbs)).toBe(true);
 	});
 
 	it("picks the largest photo variant by file_size", async () => {
@@ -61,9 +59,9 @@ describe("Single photo ingestion", () => {
 		expect(messages.some((m) => /photo|meme|text/i.test(m.text))).toBe(true);
 	});
 
-	it("sets mediaPath under scraps/YYYY/MM directory", async () => {
+	it("stores mediaUrl as a file:// URL under scraps/YYYY/MM directory", async () => {
 		await webhook(photoUpdate());
 		const scrap = await db.selectFrom("scraps").selectAll().executeTakeFirstOrThrow();
-		expect(scrap.mediaPath).toMatch(/^scraps\/\d{4}\/\d{2}\//);
+		expect(scrap.mediaUrl).toMatch(/^file:\/\/.*scraps\/\d{4}\/\d{2}\//);
 	});
 });

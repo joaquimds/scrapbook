@@ -12,9 +12,8 @@ import {
 	findScrapById,
 	updateScrapKind,
 } from "~/server/repositories/scraps.ts";
-import { saveOriginal } from "~/server/services/media-storage.ts";
+import { saveOriginal } from "~/server/services/media-storage/index.ts";
 import { downloadTelegramFile, sendTelegramMessage } from "~/server/services/telegram.ts";
-import { makeThumbnail } from "~/server/services/thumbnails.ts";
 import { logger } from "~/server/utils/logger.ts";
 import type { ScrapKind } from "~/shared/models/Scrap.ts";
 import { newId } from "~/shared/utils/id.ts";
@@ -221,16 +220,13 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 			logger.info({ fileId: m.fileId }, "ingesting media item");
 			const { buffer, ext } = await downloadTelegramFile(m.fileId);
 			const id = newId();
-			const mediaPath = await saveOriginal({ id, buffer, ext });
-			logger.info({ id, mediaPath, bytes: buffer.length }, "saved original media");
-			const thumbnailPath = await makeThumbnail({ id, buffer });
-			logger.info({ id, thumbnailPath }, "created thumbnail");
+			const { mediaUrl } = await saveOriginal({ id, buffer, ext });
+			logger.info({ id, mediaUrl, bytes: buffer.length }, "saved original media");
 			const scrap = await createScrap({
 				id,
 				kind: "photo",
 				body: caption,
-				mediaPath,
-				thumbnailPath,
+				mediaUrl,
 				source: "telegram",
 				externalMessageId: m.messageSid,
 			});
