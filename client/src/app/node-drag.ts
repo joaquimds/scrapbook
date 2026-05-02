@@ -1,4 +1,5 @@
 import { getSimNode, getSimulation } from "~/client/src/app/force-simulation.ts";
+import { clientToWorld } from "~/client/src/stores/viewport.ts";
 
 const DRAG_THRESHOLD_PX = 3;
 
@@ -26,14 +27,16 @@ export function createNodeDragHandlers(
 		const sn = getSimNode(id());
 		if (!sn) return;
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		const world = clientToWorld(e.clientX, e.clientY);
 		drag = {
 			pointerId: e.pointerId,
 			startX: e.clientX,
 			startY: e.clientY,
-			offsetX: e.clientX - (sn.x ?? 0),
-			offsetY: e.clientY - (sn.y ?? 0),
+			offsetX: world.x - (sn.x ?? 0),
+			offsetY: world.y - (sn.y ?? 0),
 			moved: false,
 		};
+		e.stopPropagation();
 		e.preventDefault();
 	};
 
@@ -41,8 +44,9 @@ export function createNodeDragHandlers(
 		if (!drag || e.pointerId !== drag.pointerId) return;
 		const sn = getSimNode(id());
 		if (!sn) return;
-		const nx = e.clientX - drag.offsetX;
-		const ny = e.clientY - drag.offsetY;
+		const world = clientToWorld(e.clientX, e.clientY);
+		const nx = world.x - drag.offsetX;
+		const ny = world.y - drag.offsetY;
 		if (
 			!drag.moved &&
 			Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) >= DRAG_THRESHOLD_PX

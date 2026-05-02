@@ -1,4 +1,4 @@
-import { createMemo } from "solid-js";
+import { createMemo, createRoot } from "solid-js";
 import { peopleStore } from "~/client/src/stores/people.ts";
 import { scrapsStore } from "~/client/src/stores/scraps.ts";
 
@@ -20,35 +20,41 @@ export interface GraphEdge {
 // simulation only rebuilds when the underlying data actually changes.
 
 // Featured scraps are rendered inline on the person node, so they should not
-// appear as standalone scrap nodes (or contribute edges).
-const featuredScrapIds = createMemo(() => {
-	const ids = new Set<string>();
-	for (const pid of peopleStore.ids) {
-		const fid = peopleStore.byId[pid]?.featuredScrapId;
-		if (fid) ids.add(fid);
-	}
-	return ids;
-});
-
-export const graphNodes = createMemo<GraphNode[]>(() => {
-	const featured = featuredScrapIds();
-	const scrapNodes = scrapsStore.ids
-		.filter((id) => !featured.has(id))
-		.map((id): GraphNode => ({ id, nodeKind: "scrap" }));
-	const personNodes = peopleStore.ids.map((id): GraphNode => ({ id, nodeKind: "person" }));
-	return [...scrapNodes, ...personNodes];
-});
-
-export const graphEdges = createMemo<GraphEdge[]>(() => {
-	const featured = featuredScrapIds();
-	const out: GraphEdge[] = [];
-	for (const sid of scrapsStore.ids) {
-		if (featured.has(sid)) continue;
-		const scrap = scrapsStore.byId[sid];
-		if (!scrap) continue;
-		for (const pid of scrap.peopleIds) {
-			out.push({ id: `${sid}::${pid}`, source: sid, target: pid });
+// appear as standalone scrap nodes (or contribute edges). The memos live
+// inside a single createRoot so they have a long-lived reactive owner.
+export const { graphNodes, graphEdges } = createRoot(() => {
+	const featuredScrapIds = createMemo(() => {
+		const ids = new Set<string>();
+		for (const pid of peopleStore.ids) {
+			const fid = peopleStore.byId[pid]?.featuredScrapId;
+			if (fid) ids.add(fid);
 		}
-	}
-	return out;
+		return ids;
+	});
+
+	const graphNodes = createMemo<GraphNode[]>(() => {
+		const featured = featuredScrapIds();
+		const scrapNodes = scrapsStore.ids
+			.filter((id) => !featured.has(id))
+			.map((id): GraphNode => ({ id, nodeKind: "scrap" }));
+		const personNodes = peopleStore.ids.map((id): GraphNode => ({ id, nodeKind: "person" }));
+		return [...scrapNodes, ...personNodes];
+	});
+
+	const graphEdges = createMemo<GraphEdge[]>(() => {
+		const featured = featuredScrapIds();
+		const out: GraphEdge[] = [];
+		for (const sid of scrapsStore.ids) {
+			if (featured.has(sid)) continue;
+			const scrap = scrapsStore.byId[sid];
+			if (!scrap) continue;
+			for (const pid of scrap.peopleIds) {
+				if (!peopleStore.byId[pid]) continue;
+				out.push({ id: `${sid}::${pid}`, source: sid, target: pid });
+			}
+		}
+		return out;
+	});
+
+	return { graphNodes, graphEdges };
 });

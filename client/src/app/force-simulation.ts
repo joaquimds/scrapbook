@@ -36,6 +36,12 @@ export { positionsStore };
 let simulation: Simulation<SimNode, SimEdge> | null = null;
 const simNodes = new Map<string, SimNode>();
 
+let onTickCallback: (() => void) | null = null;
+
+export function setOnTick(cb: (() => void) | null): void {
+	onTickCallback = cb;
+}
+
 export function getSimulation(): Simulation<SimNode, SimEdge> | null {
 	return simulation;
 }
@@ -96,8 +102,7 @@ export function startForceSimulation(): void {
 		const nextNodes: SimNode[] = [];
 		for (const n of nodes) {
 			let sn = simNodes.get(n.id);
-			const persisted =
-				n.nodeKind === "scrap" ? scrapsStore.byId[n.id] : peopleStore.byId[n.id];
+			const persisted = n.nodeKind === "scrap" ? scrapsStore.byId[n.id] : peopleStore.byId[n.id];
 			if (!sn) {
 				if (persisted && persisted.x !== null && persisted.y !== null) {
 					sn = {
@@ -174,4 +179,5 @@ function flushPositions(): void {
 			}
 		}),
 	);
+	onTickCallback?.();
 }
