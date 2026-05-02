@@ -9,6 +9,7 @@ const EnvSchema = z
 		STORAGE_ROOT: z.string().default("./storage"),
 		MEDIA_DRIVER: z.enum(["local", "cloudinary"]).default("local"),
 		CLOUDINARY_URL: z.string().optional(),
+		AUTH_PASSWORD: z.string().min(1),
 		TELEGRAM_BOT_TOKEN: z.string().optional(),
 		TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
 		TELEGRAM_ALLOWED_CHAT_ID: z.string().optional(),

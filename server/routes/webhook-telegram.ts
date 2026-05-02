@@ -140,9 +140,7 @@ telegramWebhookRoute.post("/", async (c) => {
 
 function pickImageFileId(message: TelegramMessage): string | null {
 	if (message.photo && message.photo.length > 0) {
-		const largest = [...message.photo].sort(
-			(a, b) => (b.file_size ?? 0) - (a.file_size ?? 0),
-		)[0];
+		const largest = [...message.photo].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0))[0];
 		if (largest) return largest.file_id;
 	}
 	if (message.document?.mime_type?.startsWith("image/")) {

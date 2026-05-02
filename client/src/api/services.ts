@@ -1,3 +1,4 @@
+import { setUnauthed } from "~/client/src/stores/auth.ts";
 import type { Person } from "~/shared/models/Person.ts";
 import type { Scrap } from "~/shared/models/Scrap.ts";
 
@@ -7,7 +8,11 @@ export interface Page<T> {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-	const res = await fetch(url);
+	const res = await fetch(url, { credentials: "include" });
+	if (res.status === 401) {
+		setUnauthed();
+		throw new Error(`${url}: 401`);
+	}
 	if (!res.ok) throw new Error(`${url}: ${res.status}`);
 	return (await res.json()) as T;
 }
@@ -25,9 +30,14 @@ export async function createScrap(input: {
 }): Promise<Scrap> {
 	const res = await fetch("/api/scraps", {
 		method: "POST",
+		credentials: "include",
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify(input),
 	});
+	if (res.status === 401) {
+		setUnauthed();
+		throw new Error("POST /api/scraps: 401");
+	}
 	if (!res.ok) throw new Error(`POST /api/scraps: ${res.status}`);
 	return (await res.json()) as Scrap;
 }

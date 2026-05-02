@@ -39,9 +39,7 @@ export const PersonNode: Component<{ id: string }> = (props) => {
 					style={{ left: `${d().pos.x}px`, top: `${d().pos.y}px` }}
 				>
 					<Show when={d().thumb}>
-						{(thumb) => (
-							<img class="person-photo" src={thumb()} alt={d().person.name} />
-						)}
+						{(thumb) => <img class="person-photo" src={thumb()} alt={d().person.name} />}
 					</Show>
 					<span class="node-label">{d().person.name}</span>
 				</div>

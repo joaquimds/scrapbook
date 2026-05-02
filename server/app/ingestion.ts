@@ -270,7 +270,11 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 	);
 }
 
-const CANCELLABLE_STATES = new Set(["awaitingImageKind", "awaitingFriends", "awaitingFeaturedDecision"]);
+const CANCELLABLE_STATES = new Set([
+	"awaitingImageKind",
+	"awaitingFriends",
+	"awaitingFeaturedDecision",
+]);
 
 function isCancelCommand(text: string): boolean {
 	return /^\/?cancel$/i.test(text.trim());
