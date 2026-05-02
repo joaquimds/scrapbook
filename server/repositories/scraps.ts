@@ -63,6 +63,11 @@ export async function updateScrapKind(scrapId: string, kind: ScrapKind): Promise
 	await db.updateTable("scraps").set({ kind }).where("id", "=", scrapId).execute();
 }
 
+export async function deleteScraps(ids: string[]): Promise<void> {
+	if (ids.length === 0) return;
+	await db.deleteFrom("scraps").where("id", "in", ids).execute();
+}
+
 export async function setScrapPeople(scrapId: string, peopleIds: string[]): Promise<void> {
 	await db.transaction().execute(async (trx) => {
 		await trx.deleteFrom("scrapPeople").where("scrapId", "=", scrapId).execute();

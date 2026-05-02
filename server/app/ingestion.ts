@@ -8,6 +8,7 @@ import { resolveOrCreatePeople, setFeaturedScrap } from "~/server/repositories/p
 import {
 	addScrapPeople,
 	createScrap,
+	deleteScraps,
 	findScrapByExternalMessageId,
 	findScrapById,
 	updateScrapKind,
@@ -62,6 +63,21 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		},
 		"resolved ingestion session",
 	);
+
+	if (isCancelCommand(text)) {
+		if (session && CANCELLABLE_STATES.has(session.state)) {
+			logger.info(
+				{ from: msg.from, state: session.state, scrapIds: session.pendingScrapIds },
+				"cancelling scrap-add flow",
+			);
+			await deleteScraps(session.pendingScrapIds);
+			await deleteSession(session.id);
+			await sendTelegramMessage(msg.from, "Cancelled. Nothing saved.");
+		} else {
+			await sendTelegramMessage(msg.from, "Nothing to cancel.");
+		}
+		return;
+	}
 
 	if (!session) {
 		if (!text) {
@@ -252,6 +268,12 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 		msg.from,
 		`Saved ${noun}. What kind — photo, meme, or text? (text = a screenshot of writing)`,
 	);
+}
+
+const CANCELLABLE_STATES = new Set(["awaitingImageKind", "awaitingFriends", "awaitingFeaturedDecision"]);
+
+function isCancelCommand(text: string): boolean {
+	return /^\/?cancel$/i.test(text.trim());
 }
 
 function parseFriendNames(text: string): string[] {
