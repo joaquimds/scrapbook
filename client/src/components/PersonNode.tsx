@@ -3,6 +3,7 @@ import { updatePersonPosition } from "~/client/src/api/services.ts";
 import { getSimulation, positionsStore } from "~/client/src/app/force-simulation.ts";
 import { createNodeDragHandlers } from "~/client/src/app/node-drag.ts";
 import { setNodeSize } from "~/client/src/app/node-sizes.ts";
+import { HiResImage } from "~/client/src/components/HiResImage.tsx";
 import { peopleStore } from "~/client/src/stores/people.ts";
 import { scrapsStore } from "~/client/src/stores/scraps.ts";
 
@@ -13,7 +14,8 @@ export const PersonNode: Component<{ id: string }> = (props) => {
 		if (!pos || !person) return undefined;
 		const featured = person.featuredScrapId ? scrapsStore.byId[person.featuredScrapId] : undefined;
 		const thumb = featured?.thumbnailUrl ?? null;
-		return { pos, person, thumb };
+		const media = featured?.mediaUrl ?? null;
+		return { pos, person, thumb, media };
 	};
 
 	let el: HTMLDivElement | undefined;
@@ -47,9 +49,12 @@ export const PersonNode: Component<{ id: string }> = (props) => {
 					onPointerCancel={drag.onPointerUp}
 				>
 					<Show when={d().thumb}>
-						{(thumb) => (
-							<img class="person-photo" src={thumb()} alt={d().person.name} draggable={false} />
-						)}
+						<HiResImage
+							class="person-photo"
+							thumbUrl={d().thumb}
+							mediaUrl={d().media}
+							alt={d().person.name}
+						/>
 					</Show>
 					<span class="node-label">{d().person.name}</span>
 				</div>

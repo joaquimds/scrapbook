@@ -3,6 +3,7 @@ import { updateScrapPosition } from "~/client/src/api/services.ts";
 import { getSimulation, positionsStore } from "~/client/src/app/force-simulation.ts";
 import { createNodeDragHandlers } from "~/client/src/app/node-drag.ts";
 import { setNodeSize } from "~/client/src/app/node-sizes.ts";
+import { HiResImage } from "~/client/src/components/HiResImage.tsx";
 import { scrapsStore } from "~/client/src/stores/scraps.ts";
 
 export const ScrapNode: Component<{ id: string }> = (props) => {
@@ -47,15 +48,13 @@ export const ScrapNode: Component<{ id: string }> = (props) => {
 						when={d().scrap.thumbnailUrl}
 						fallback={<div class="scrap-card">{d().scrap.body ?? d().scrap.kind}</div>}
 					>
-						{(thumb) => (
-							<img
-								class="scrap-photo"
-								src={thumb()}
-								alt={d().scrap.body ?? ""}
-								title={d().scrap.body ?? undefined}
-								draggable={false}
-							/>
-						)}
+						<HiResImage
+							class="scrap-photo"
+							thumbUrl={d().scrap.thumbnailUrl}
+							mediaUrl={d().scrap.mediaUrl}
+							alt={d().scrap.body ?? ""}
+							title={d().scrap.body ?? undefined}
+						/>
 					</Show>
 				</div>
 			)}

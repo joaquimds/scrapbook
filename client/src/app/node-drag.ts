@@ -1,5 +1,5 @@
 import { getSimNode, getSimulation } from "~/client/src/app/force-simulation.ts";
-import { clientToWorld } from "~/client/src/stores/viewport.ts";
+import { clientToWorld, setViewportStore, viewportStore } from "~/client/src/stores/viewport.ts";
 
 const DRAG_THRESHOLD_PX = 3;
 
@@ -53,6 +53,10 @@ export function createNodeDragHandlers(
 		) {
 			drag.moved = true;
 			getSimulation()?.alphaTarget(0.3).restart();
+			if (viewportStore.mode !== "drag") {
+				const preDragMode = viewportStore.mode === "manual" ? "manual" : "auto";
+				setViewportStore({ mode: "drag", preDragMode });
+			}
 		}
 		if (drag.moved) {
 			sn.fx = nx;
@@ -68,6 +72,9 @@ export function createNodeDragHandlers(
 		drag = null;
 		if (!moved) return;
 		getSimulation()?.alphaTarget(0);
+		if (viewportStore.mode === "drag") {
+			setViewportStore({ mode: viewportStore.preDragMode });
+		}
 		const sn = getSimNode(id());
 		if (!sn || sn.fx == null || sn.fy == null) return;
 		const nodeId = id();
