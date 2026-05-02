@@ -60,7 +60,13 @@ describe('"cancel" command', () => {
 		const absolute = fileURLToPath(mediaUrl);
 		expect(existsSync(absolute)).toBe(true);
 
-		const scrap = await createScrap({ id, kind: "photo", body: null, mediaUrl, source: "telegram" });
+		const scrap = await createScrap({
+			id,
+			kind: "photo",
+			body: null,
+			mediaUrl,
+			source: "telegram",
+		});
 		await upsertSession({
 			chatId: CHAT_ID,
 			state: "awaitingImageKind",

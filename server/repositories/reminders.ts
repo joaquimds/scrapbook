@@ -38,7 +38,15 @@ export async function pickPersonDueForReminder(opts: {
 					.as("r"),
 			(join) => join.onRef("r.personId", "=", "p.id"),
 		)
-		.select(["p.id", "p.name", "p.featuredScrapId", "p.lastContactedAt", "p.createdAt"])
+		.select([
+			"p.id",
+			"p.name",
+			"p.featuredScrapId",
+			"p.lastContactedAt",
+			"p.createdAt",
+			"p.x",
+			"p.y",
+		])
 		.where(sql<boolean>`${lastTouched} < now() - ${cooldown}::interval`)
 		.orderBy(lastTouched, "asc")
 		.limit(1)

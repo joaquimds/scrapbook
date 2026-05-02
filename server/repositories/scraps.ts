@@ -27,6 +27,8 @@ interface ScrapRow {
 	source: ScrapSource;
 	externalMessageId: string | null;
 	createdAt: Date;
+	x: number | null;
+	y: number | null;
 }
 
 export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
@@ -61,6 +63,10 @@ export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
 
 export async function updateScrapKind(scrapId: string, kind: ScrapKind): Promise<void> {
 	await db.updateTable("scraps").set({ kind }).where("id", "=", scrapId).execute();
+}
+
+export async function updateScrapPosition(scrapId: string, x: number, y: number): Promise<void> {
+	await db.updateTable("scraps").set({ x, y }).where("id", "=", scrapId).execute();
 }
 
 export async function deleteScraps(ids: string[]): Promise<void> {
@@ -172,6 +178,8 @@ function shape(row: ScrapRow, peopleIds: string[]): Scrap {
 		source: row.source,
 		externalMessageId: row.externalMessageId,
 		createdAt: row.createdAt,
+		x: row.x,
+		y: row.y,
 		peopleIds,
 	};
 }

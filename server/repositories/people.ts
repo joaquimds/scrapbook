@@ -74,6 +74,10 @@ export async function setFeaturedScrap(personId: string, scrapId: string | null)
 		.execute();
 }
 
+export async function updatePersonPosition(personId: string, x: number, y: number): Promise<void> {
+	await db.updateTable("people").set({ x, y }).where("id", "=", personId).execute();
+}
+
 /**
  * Resolves a list of free-text names into people, creating any that don't exist
  * (case-insensitive match on existing `name`). Returns one person per requested

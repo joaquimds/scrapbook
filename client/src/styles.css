@@ -47,6 +47,20 @@ body,
 	word-break: break-word;
 }
 
+.node {
+	touch-action: none;
+}
+
+.scrap-node,
+.person-node {
+	cursor: grab;
+}
+
+.scrap-node:active,
+.person-node:active {
+	cursor: grabbing;
+}
+
 /* On a person node with a photo, the label sits below the photo without
    affecting the wrapper's bounding box — so collision + edge clipping
    measure only the photo. */

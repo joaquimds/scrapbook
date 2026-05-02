@@ -1,4 +1,5 @@
 import {
+	forceCenter,
 	forceLink,
 	forceManyBody,
 	forceSimulation,
@@ -10,8 +11,10 @@ import { createEffect, onCleanup } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { deleteNodeSize, getNodeSize } from "~/client/src/app/node-sizes.ts";
 import { graphEdges, graphNodes } from "~/client/src/stores/graph.ts";
+import { peopleStore } from "~/client/src/stores/people.ts";
+import { scrapsStore } from "~/client/src/stores/scraps.ts";
 
-interface SimNode extends SimulationNodeDatum {
+export interface SimNode extends SimulationNodeDatum {
 	id: string;
 	nodeKind: "scrap" | "person";
 }
@@ -19,16 +22,16 @@ type SimEdge = SimulationLinkDatum<SimNode>;
 
 // Layout positions are kept in a separate store from the data. The simulation
 // mutates `simNodes` in place each tick; we copy the resulting (x, y) pairs
-// into the reactive `positions` store so components re-render.
+// into the reactive `positionsStore` so components re-render.
 
 interface Position {
 	x: number;
 	y: number;
 }
 
-const [positions, setPositions] = createStore<Record<string, Position>>({});
+const [positionsStore, setPositionsStore] = createStore<Record<string, Position>>({});
 
-export { positions };
+export { positionsStore };
 
 let simulation: Simulation<SimNode, SimEdge> | null = null;
 const simNodes = new Map<string, SimNode>();
@@ -37,61 +40,12 @@ export function getSimulation(): Simulation<SimNode, SimEdge> | null {
 	return simulation;
 }
 
+export function getSimNode(id: string): SimNode | undefined {
+	return simNodes.get(id);
+}
+
 const RECT_FALLBACK = { w: 40, h: 40 };
 const RECT_PAD = 24;
-const RING_MARGIN = 80;
-
-function ringRadius(): number {
-	return Math.max(100, Math.min(window.innerWidth, window.innerHeight) / 2 - RING_MARGIN);
-}
-
-// Clamps scrap nodes to remain inside the person ring. Person nodes are
-// pinned via fx/fy so this force only nudges scraps.
-function ringClamp() {
-	let nodes: SimNode[] = [];
-	const force = () => {
-		const cx = window.innerWidth / 2;
-		const cy = window.innerHeight / 2;
-		const r = ringRadius();
-		for (const n of nodes) {
-			if (n.nodeKind !== "scrap") continue;
-			const dx = (n.x ?? 0) - cx;
-			const dy = (n.y ?? 0) - cy;
-			const dist = Math.hypot(dx, dy);
-			if (dist > r && dist > 0) {
-				const k = r / dist;
-				n.x = cx + dx * k;
-				n.y = cy + dy * k;
-				if (n.vx !== undefined) n.vx *= 0.5;
-				if (n.vy !== undefined) n.vy *= 0.5;
-			}
-		}
-	};
-	force.initialize = (n: SimNode[]) => {
-		nodes = n;
-	};
-	return force;
-}
-
-function pinPeopleToRing(nodes: SimNode[]): void {
-	const cx = window.innerWidth / 2;
-	const cy = window.innerHeight / 2;
-	const r = ringRadius();
-	const people = nodes.filter((n) => n.nodeKind === "person");
-	const count = people.length;
-	if (count === 0) return;
-	// Sort by id for stable angular order across renders.
-	people.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-	for (let i = 0; i < count; i++) {
-		const p = people[i];
-		if (!p) continue;
-		const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
-		p.fx = cx + Math.cos(angle) * r;
-		p.fy = cy + Math.sin(angle) * r;
-		p.x = p.fx;
-		p.y = p.fy;
-	}
-}
 
 // Custom collision force: treats each node as a padded axis-aligned rectangle
 // using sizes measured from the DOM (see node-sizes.ts). On each tick it
@@ -142,8 +96,26 @@ export function startForceSimulation(): void {
 		const nextNodes: SimNode[] = [];
 		for (const n of nodes) {
 			let sn = simNodes.get(n.id);
+			const persisted =
+				n.nodeKind === "scrap" ? scrapsStore.byId[n.id] : peopleStore.byId[n.id];
 			if (!sn) {
-				sn = { id: n.id, nodeKind: n.nodeKind };
+				if (persisted && persisted.x !== null && persisted.y !== null) {
+					sn = {
+						id: n.id,
+						nodeKind: n.nodeKind,
+						x: persisted.x,
+						y: persisted.y,
+						fx: persisted.x,
+						fy: persisted.y,
+					};
+				} else {
+					sn = {
+						id: n.id,
+						nodeKind: n.nodeKind,
+						x: window.innerWidth / 2 + (Math.random() - 0.5) * 50,
+						y: window.innerHeight / 2 + (Math.random() - 0.5) * 50,
+					};
+				}
 				simNodes.set(n.id, sn);
 			} else {
 				sn.nodeKind = n.nodeKind;
@@ -160,8 +132,6 @@ export function startForceSimulation(): void {
 
 		const nextEdges: SimEdge[] = edges.map((e) => ({ source: e.source, target: e.target }));
 
-		pinPeopleToRing(nextNodes);
-
 		if (!simulation) {
 			simulation = forceSimulation<SimNode, SimEdge>(nextNodes)
 				.force(
@@ -172,8 +142,9 @@ export function startForceSimulation(): void {
 				)
 				.force("charge", forceManyBody().strength(-200))
 				.force("collide", rectCollide())
-				.force("ring", ringClamp())
+				.force("center", forceCenter(window.innerWidth / 2, window.innerHeight / 2))
 				.on("tick", flushPositions);
+			window.addEventListener("resize", handleResize);
 		} else {
 			simulation.nodes(nextNodes);
 			(simulation.force("link") as ReturnType<typeof forceLink<SimNode, SimEdge>>).links(nextEdges);
@@ -182,13 +153,21 @@ export function startForceSimulation(): void {
 	});
 
 	onCleanup(() => {
+		window.removeEventListener("resize", handleResize);
 		simulation?.stop();
 		simulation = null;
 	});
 }
 
+function handleResize(): void {
+	const center = simulation?.force("center") as ReturnType<typeof forceCenter> | undefined;
+	if (!center) return;
+	center.x(window.innerWidth / 2).y(window.innerHeight / 2);
+	simulation?.alpha(0.3).restart();
+}
+
 function flushPositions(): void {
-	setPositions(
+	setPositionsStore(
 		produce((p) => {
 			for (const sn of simNodes.values()) {
 				p[sn.id] = { x: sn.x ?? 0, y: sn.y ?? 0 };

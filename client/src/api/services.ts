@@ -41,3 +41,23 @@ export async function createScrap(input: {
 	if (!res.ok) throw new Error(`POST /api/scraps: ${res.status}`);
 	return (await res.json()) as Scrap;
 }
+
+async function patchPosition(path: string, x: number, y: number): Promise<void> {
+	const res = await fetch(path, {
+		method: "PATCH",
+		credentials: "include",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ x, y }),
+	});
+	if (res.status === 401) {
+		setUnauthed();
+		throw new Error(`PATCH ${path}: 401`);
+	}
+	if (!res.ok) throw new Error(`PATCH ${path}: ${res.status}`);
+}
+
+export const updateScrapPosition = (id: string, x: number, y: number) =>
+	patchPosition(`/api/scraps/${id}/position`, x, y);
+
+export const updatePersonPosition = (id: string, x: number, y: number) =>
+	patchPosition(`/api/people/${id}/position`, x, y);

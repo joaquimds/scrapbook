@@ -1,12 +1,14 @@
 import { type Component, onCleanup, Show } from "solid-js";
-import { getSimulation, positions } from "~/client/src/app/force-simulation.ts";
+import { updatePersonPosition } from "~/client/src/api/services.ts";
+import { getSimulation, positionsStore } from "~/client/src/app/force-simulation.ts";
+import { createNodeDragHandlers } from "~/client/src/app/node-drag.ts";
 import { setNodeSize } from "~/client/src/app/node-sizes.ts";
 import { peopleStore } from "~/client/src/stores/people.ts";
 import { scrapsStore } from "~/client/src/stores/scraps.ts";
 
 export const PersonNode: Component<{ id: string }> = (props) => {
 	const data = () => {
-		const pos = positions[props.id];
+		const pos = positionsStore[props.id];
 		const person = peopleStore.byId[props.id];
 		if (!pos || !person) return undefined;
 		const featured = person.featuredScrapId ? scrapsStore.byId[person.featuredScrapId] : undefined;
@@ -30,6 +32,8 @@ export const PersonNode: Component<{ id: string }> = (props) => {
 		observer.disconnect();
 	});
 
+	const drag = createNodeDragHandlers(() => props.id, updatePersonPosition);
+
 	return (
 		<Show when={data()}>
 			{(d) => (
@@ -37,9 +41,15 @@ export const PersonNode: Component<{ id: string }> = (props) => {
 					ref={attach}
 					class="node person-node"
 					style={{ left: `${d().pos.x}px`, top: `${d().pos.y}px` }}
+					onPointerDown={drag.onPointerDown}
+					onPointerMove={drag.onPointerMove}
+					onPointerUp={drag.onPointerUp}
+					onPointerCancel={drag.onPointerUp}
 				>
 					<Show when={d().thumb}>
-						{(thumb) => <img class="person-photo" src={thumb()} alt={d().person.name} />}
+						{(thumb) => (
+							<img class="person-photo" src={thumb()} alt={d().person.name} draggable={false} />
+						)}
 					</Show>
 					<span class="node-label">{d().person.name}</span>
 				</div>

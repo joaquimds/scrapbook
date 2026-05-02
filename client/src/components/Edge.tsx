@@ -1,5 +1,5 @@
 import type { Component } from "solid-js";
-import { positions } from "~/client/src/app/force-simulation.ts";
+import { positionsStore } from "~/client/src/app/force-simulation.ts";
 import { getNodeSize } from "~/client/src/app/node-sizes.ts";
 
 const FALLBACK = { w: 40, h: 40 };
@@ -27,8 +27,8 @@ function clipToRect(
 
 export const Edge: Component<{ source: string; target: string }> = (props) => {
 	const ends = () => {
-		const sp = positions[props.source];
-		const tp = positions[props.target];
+		const sp = positionsStore[props.source];
+		const tp = positionsStore[props.target];
 		if (!sp || !tp) return undefined;
 		const ss = getNodeSize(props.source) ?? FALLBACK;
 		const ts = getNodeSize(props.target) ?? FALLBACK;

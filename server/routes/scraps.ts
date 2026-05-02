@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { createScrap, findScrapById, listScrapsPage } from "~/server/repositories/scraps.ts";
+import {
+	createScrap,
+	findScrapById,
+	listScrapsPage,
+	updateScrapPosition,
+} from "~/server/repositories/scraps.ts";
 import { decodeCursor, PageQuerySchema } from "~/server/utils/pagination.ts";
 import { ScrapKindSchema } from "~/shared/models/Scrap.ts";
 
@@ -8,6 +13,11 @@ const CreateScrapSchema = z.object({
 	kind: ScrapKindSchema.default("quote"),
 	body: z.string().nullable(),
 	peopleIds: z.array(z.string()).default([]),
+});
+
+const PositionSchema = z.object({
+	x: z.number().finite(),
+	y: z.number().finite(),
 });
 
 export const scrapsRoute = new Hono();
@@ -37,4 +47,14 @@ scrapsRoute.post("/", async (c) => {
 		peopleIds: parsed.data.peopleIds,
 	});
 	return c.json(scrap, 201);
+});
+
+scrapsRoute.patch("/:id/position", async (c) => {
+	const id = c.req.param("id");
+	const parsed = PositionSchema.safeParse(await c.req.json());
+	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+	const existing = await findScrapById(id);
+	if (!existing) return c.json({ error: "not_found" }, 404);
+	await updateScrapPosition(id, parsed.data.x, parsed.data.y);
+	return c.json({ ok: true });
 });

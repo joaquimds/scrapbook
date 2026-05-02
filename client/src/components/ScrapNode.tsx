@@ -1,11 +1,13 @@
 import { type Component, onCleanup, Show } from "solid-js";
-import { getSimulation, positions } from "~/client/src/app/force-simulation.ts";
+import { updateScrapPosition } from "~/client/src/api/services.ts";
+import { getSimulation, positionsStore } from "~/client/src/app/force-simulation.ts";
+import { createNodeDragHandlers } from "~/client/src/app/node-drag.ts";
 import { setNodeSize } from "~/client/src/app/node-sizes.ts";
 import { scrapsStore } from "~/client/src/stores/scraps.ts";
 
 export const ScrapNode: Component<{ id: string }> = (props) => {
 	const data = () => {
-		const pos = positions[props.id];
+		const pos = positionsStore[props.id];
 		const scrap = scrapsStore.byId[props.id];
 		if (!pos || !scrap) return undefined;
 		return { pos, scrap };
@@ -27,6 +29,8 @@ export const ScrapNode: Component<{ id: string }> = (props) => {
 		observer.disconnect();
 	});
 
+	const drag = createNodeDragHandlers(() => props.id, updateScrapPosition);
+
 	return (
 		<Show when={data()}>
 			{(d) => (
@@ -34,6 +38,10 @@ export const ScrapNode: Component<{ id: string }> = (props) => {
 					ref={attach}
 					class="node scrap-node"
 					style={{ left: `${d().pos.x}px`, top: `${d().pos.y}px` }}
+					onPointerDown={drag.onPointerDown}
+					onPointerMove={drag.onPointerMove}
+					onPointerUp={drag.onPointerUp}
+					onPointerCancel={drag.onPointerUp}
 				>
 					<Show
 						when={d().scrap.thumbnailUrl}
@@ -45,6 +53,7 @@ export const ScrapNode: Component<{ id: string }> = (props) => {
 								src={thumb()}
 								alt={d().scrap.body ?? ""}
 								title={d().scrap.body ?? undefined}
+								draggable={false}
 							/>
 						)}
 					</Show>

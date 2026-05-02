@@ -5,12 +5,17 @@ import {
 	findPersonById,
 	listPeoplePage,
 	setFeaturedScrap,
+	updatePersonPosition,
 } from "~/server/repositories/people.ts";
 import { decodeCursor, PageQuerySchema } from "~/server/utils/pagination.ts";
 
 const CreatePersonSchema = z.object({ name: z.string().min(1) });
 const PatchPersonSchema = z.object({
 	featuredScrapId: z.string().nullable().optional(),
+});
+const PositionSchema = z.object({
+	x: z.number().finite(),
+	y: z.number().finite(),
 });
 
 export const peopleRoute = new Hono();
@@ -46,4 +51,14 @@ peopleRoute.patch("/:id", async (c) => {
 	const person = await findPersonById(id);
 	if (!person) return c.json({ error: "not_found" }, 404);
 	return c.json(person);
+});
+
+peopleRoute.patch("/:id/position", async (c) => {
+	const id = c.req.param("id");
+	const parsed = PositionSchema.safeParse(await c.req.json());
+	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+	const existing = await findPersonById(id);
+	if (!existing) return c.json({ error: "not_found" }, 404);
+	await updatePersonPosition(id, parsed.data.x, parsed.data.y);
+	return c.json({ ok: true });
 });
