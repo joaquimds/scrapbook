@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { db } from "~/server/db/connection.ts";
 import { webhook } from "~/tests/harness/app.ts";
-import { photoUpdate } from "~/tests/harness/fixtures.ts";
+import { documentUpdate, photoUpdate } from "~/tests/harness/fixtures.ts";
 import { sentMessages } from "~/tests/harness/telegram.ts";
 
 describe("Single photo ingestion", () => {
@@ -57,6 +57,23 @@ describe("Single photo ingestion", () => {
 		await webhook(photoUpdate());
 		const messages = sentMessages();
 		expect(messages.some((m) => /photo|meme|text/i.test(m.text))).toBe(true);
+	});
+
+	it("ingests an image sent as a document (Telegram 'send as file')", async () => {
+		await webhook(documentUpdate({ caption: "uncompressed" }));
+
+		const scraps = await db.selectFrom("scraps").selectAll().execute();
+		expect(scraps).toHaveLength(1);
+		const [scrap] = scraps;
+		expect(scrap?.kind).toBe("photo");
+		expect(scrap?.body).toBe("uncompressed");
+		expect(scrap?.mediaUrl).toMatch(/^file:\/\/.*scraps\/\d{4}\/\d{2}\//);
+	});
+
+	it("ignores documents that aren't images", async () => {
+		await webhook(documentUpdate({ mimeType: "application/pdf" }));
+		const scraps = await db.selectFrom("scraps").selectAll().execute();
+		expect(scraps).toHaveLength(0);
 	});
 
 	it("stores mediaUrl as a file:// URL under scraps/YYYY/MM directory", async () => {

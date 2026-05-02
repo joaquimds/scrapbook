@@ -43,6 +43,46 @@ export function textUpdate(text: string, chatId = _chatId): TextUpdate {
 	};
 }
 
+interface DocumentUpdate {
+	update_id: number;
+	message: {
+		message_id: number;
+		chat: { id: number };
+		document: {
+			file_id: string;
+			file_unique_id: string;
+			mime_type?: string;
+			file_name?: string;
+			file_size?: number;
+		};
+		caption?: string;
+	};
+}
+
+export function documentUpdate(opts?: {
+	fileId?: string;
+	mimeType?: string;
+	caption?: string;
+	chatId?: number;
+}): DocumentUpdate {
+	const fileId = opts?.fileId ?? `doc_${Math.random().toString(36).slice(2)}`;
+	return {
+		update_id: nextUpdateId(),
+		message: {
+			message_id: _messageId++,
+			chat: { id: opts?.chatId ?? _chatId },
+			document: {
+				file_id: fileId,
+				file_unique_id: fileId,
+				mime_type: opts?.mimeType ?? "image/jpeg",
+				file_name: "photo.jpg",
+				file_size: 80000,
+			},
+			...(opts?.caption !== undefined ? { caption: opts.caption } : {}),
+		},
+	};
+}
+
 export function photoUpdate(opts?: {
 	fileId?: string;
 	caption?: string;

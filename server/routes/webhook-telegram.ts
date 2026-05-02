@@ -11,12 +11,21 @@ interface TelegramPhotoSize {
 	file_size?: number;
 }
 
+interface TelegramDocument {
+	file_id: string;
+	file_unique_id: string;
+	mime_type?: string;
+	file_name?: string;
+	file_size?: number;
+}
+
 interface TelegramMessage {
 	message_id: number;
 	chat: { id: number };
 	text?: string;
 	caption?: string;
 	photo?: TelegramPhotoSize[];
+	document?: TelegramDocument;
 	media_group_id?: string;
 }
 
@@ -81,27 +90,26 @@ telegramWebhookRoute.post("/", async (c) => {
 			messageId: message.message_id,
 			textLength: (message.text ?? message.caption ?? "").length,
 			photoVariants: message.photo?.length ?? 0,
+			documentMime: message.document?.mime_type,
 			mediaGroupId: message.media_group_id,
 		},
 		"Telegram message accepted",
 	);
 
-	if (message.photo && message.photo.length > 0) {
-		// Pick the largest size variant (Telegram sends 3-4 thumbnails of the same image).
-		const largest = [...message.photo].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0))[0];
-		if (!largest) {
-			return c.json({ ok: true });
-		}
+	// "Send as file" delivers an image as `document` (no compression / no
+	// thumbnails array). Treat image-mime documents the same as a single photo.
+	const imageFileId = pickImageFileId(message);
+	if (imageFileId) {
 		const caption = message.caption ?? "";
 
 		if (message.media_group_id) {
 			logger.info(
-				{ updateId, mediaGroupId: message.media_group_id, fileId: largest.file_id },
+				{ updateId, mediaGroupId: message.media_group_id, fileId: imageFileId },
 				"buffering album photo",
 			);
 			bufferAlbumPhoto(message.media_group_id, {
 				chatId,
-				fileId: largest.file_id,
+				fileId: imageFileId,
 				messageSid: updateId,
 				caption,
 			});
@@ -109,11 +117,11 @@ telegramWebhookRoute.post("/", async (c) => {
 		}
 
 		// Single photo — dispatch immediately.
-		logger.info({ updateId, fileId: largest.file_id }, "dispatching single photo");
+		logger.info({ updateId, fileId: imageFileId }, "dispatching single photo");
 		await dispatch({
 			from: chatId,
 			text: caption,
-			media: [{ fileId: largest.file_id, messageSid: updateId }],
+			media: [{ fileId: imageFileId, messageSid: updateId }],
 			messageSid: updateId,
 		});
 		return c.json({ ok: true });
@@ -129,6 +137,19 @@ telegramWebhookRoute.post("/", async (c) => {
 	});
 	return c.json({ ok: true });
 });
+
+function pickImageFileId(message: TelegramMessage): string | null {
+	if (message.photo && message.photo.length > 0) {
+		const largest = [...message.photo].sort(
+			(a, b) => (b.file_size ?? 0) - (a.file_size ?? 0),
+		)[0];
+		if (largest) return largest.file_id;
+	}
+	if (message.document?.mime_type?.startsWith("image/")) {
+		return message.document.file_id;
+	}
+	return null;
+}
 
 function bufferAlbumPhoto(
 	groupId: string,
