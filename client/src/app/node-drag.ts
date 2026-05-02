@@ -1,6 +1,6 @@
 import { startEdgePan, stopEdgePan } from "~/client/src/app/edge-pan.ts";
 import { getSimNode, getSimulation } from "~/client/src/app/force-simulation.ts";
-import { clientToWorld } from "~/client/src/stores/viewport.ts";
+import { clientToWorld, setViewportStore, viewportStore } from "~/client/src/stores/viewport.ts";
 
 const DRAG_THRESHOLD_PX = 3;
 
@@ -63,6 +63,7 @@ export function createNodeDragHandlers(
 			Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) >= DRAG_THRESHOLD_PX
 		) {
 			drag.moved = true;
+			if (!viewportStore.userInteracted) setViewportStore("userInteracted", true);
 			getSimulation()?.alphaTarget(0.3).restart();
 			startEdgePan(id(), applyDrag);
 		}
