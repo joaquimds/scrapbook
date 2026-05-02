@@ -40,7 +40,7 @@ export const PersonNode: Component<{ id: string }> = (props) => {
 				>
 					<Show when={d().thumb}>
 						{(thumb) => (
-							<img class="person-photo" src={`/media/${thumb()}`} alt={d().person.name} />
+							<img class="person-photo" src={thumb()} alt={d().person.name} />
 						)}
 					</Show>
 					<span class="node-label">{d().person.name}</span>
