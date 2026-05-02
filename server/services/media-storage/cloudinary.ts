@@ -40,3 +40,19 @@ export async function saveOriginal(opts: {
 	});
 	return { mediaUrl: result.secure_url };
 }
+
+// Extracts the Cloudinary public_id from a delivery URL produced by saveOriginal,
+// e.g. https://res.cloudinary.com/<cloud>/image/upload/v123/scrapbook/2026/05/abc.jpg
+// → "scrapbook/2026/05/abc".
+function publicIdFromUrl(mediaUrl: string): string | null {
+	const match = mediaUrl.match(/\/image\/upload\/(?:v\d+\/)?(.+)$/);
+	if (!match?.[1]) return null;
+	return match[1].replace(/\.[^./]+$/, "");
+}
+
+export async function deleteOriginal(mediaUrl: string): Promise<void> {
+	ensureConfigured();
+	const publicId = publicIdFromUrl(mediaUrl);
+	if (!publicId) return;
+	await cloudinary.uploader.destroy(publicId, { resource_type: "image", invalidate: true });
+}

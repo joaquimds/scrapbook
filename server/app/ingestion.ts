@@ -11,9 +11,10 @@ import {
 	deleteScraps,
 	findScrapByExternalMessageId,
 	findScrapById,
+	getRawMediaUrls,
 	updateScrapKind,
 } from "~/server/repositories/scraps.ts";
-import { saveOriginal } from "~/server/services/media-storage/index.ts";
+import { deleteOriginal, saveOriginal } from "~/server/services/media-storage/index.ts";
 import { downloadTelegramFile, sendTelegramMessage } from "~/server/services/telegram.ts";
 import { logger } from "~/server/utils/logger.ts";
 import type { ScrapKind } from "~/shared/models/Scrap.ts";
@@ -70,6 +71,14 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 				{ from: msg.from, state: session.state, scrapIds: session.pendingScrapIds },
 				"cancelling scrap-add flow",
 			);
+			const mediaUrls = await getRawMediaUrls(session.pendingScrapIds);
+			for (const url of mediaUrls) {
+				try {
+					await deleteOriginal(url);
+				} catch (err) {
+					logger.error({ err, url }, "failed to delete media asset on cancel");
+				}
+			}
 			await deleteScraps(session.pendingScrapIds);
 			await deleteSession(session.id);
 			await sendTelegramMessage(msg.from, "Cancelled. Nothing saved.");
@@ -200,9 +209,12 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 				await setFeaturedScrap(personId, scrap.id);
 				logger.info({ scrapId: scrap.id, personId }, "set featured scrap");
 			}
-			await sendTelegramMessage(msg.from, "Set as featured photo. ✨");
+			await sendTelegramMessage(msg.from, "Set as featured photo. ✨ Send another any time.");
 		} else {
-			await sendTelegramMessage(msg.from, "OK, leaving featured photo unchanged.");
+			await sendTelegramMessage(
+				msg.from,
+				"OK, leaving featured photo unchanged. Send another any time.",
+			);
 		}
 		await deleteSession(session.id);
 		return;

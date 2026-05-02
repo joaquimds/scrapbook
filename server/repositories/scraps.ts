@@ -68,6 +68,20 @@ export async function deleteScraps(ids: string[]): Promise<void> {
 	await db.deleteFrom("scraps").where("id", "in", ids).execute();
 }
 
+// Returns raw stored mediaUrls (un-shaped — file:// or https:// as written by
+// the driver) for the given scrap ids. Use this when deleting media assets;
+// the route-shaped URLs from `findScrapById` aren't usable for that.
+export async function getRawMediaUrls(ids: string[]): Promise<string[]> {
+	if (ids.length === 0) return [];
+	const rows = await db
+		.selectFrom("scraps")
+		.select("mediaUrl")
+		.where("id", "in", ids)
+		.where("mediaUrl", "is not", null)
+		.execute();
+	return rows.map((r) => r.mediaUrl).filter((u): u is string => u !== null);
+}
+
 export async function setScrapPeople(scrapId: string, peopleIds: string[]): Promise<void> {
 	await db.transaction().execute(async (trx) => {
 		await trx.deleteFrom("scrapPeople").where("scrapId", "=", scrapId).execute();

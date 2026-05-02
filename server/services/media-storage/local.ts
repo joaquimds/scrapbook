@@ -1,6 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { env } from "~/server/env.ts";
 import { makeThumbnail } from "~/server/services/thumbnails.ts";
 
@@ -23,4 +23,12 @@ export async function saveOriginal(opts: {
 	await writeFile(absolute, opts.buffer);
 	await makeThumbnail({ id: opts.id, buffer: opts.buffer });
 	return { mediaUrl: pathToFileURL(absolute).toString() };
+}
+
+export async function deleteOriginal(mediaUrl: string): Promise<void> {
+	const absolute = fileURLToPath(mediaUrl);
+	const id = basename(absolute, extname(absolute));
+	const thumb = resolve(env.STORAGE_ROOT, "thumbnails", `${id}.webp`);
+	await rm(absolute, { force: true });
+	await rm(thumb, { force: true });
 }

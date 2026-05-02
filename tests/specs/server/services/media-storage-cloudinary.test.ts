@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const uploadStream = vi.fn();
+const destroy = vi.fn();
 
 vi.mock("cloudinary", () => ({
 	v2: {
 		config: vi.fn(),
-		uploader: { upload_stream: uploadStream },
+		uploader: { upload_stream: uploadStream, destroy },
 	},
 }));
 
@@ -16,6 +17,7 @@ afterEach(() => {
 	process.env.MEDIA_DRIVER = ORIGINAL_DRIVER;
 	process.env.CLOUDINARY_URL = ORIGINAL_URL;
 	uploadStream.mockReset();
+	destroy.mockReset();
 });
 
 describe("cloudinary driver", () => {
@@ -49,5 +51,43 @@ describe("cloudinary driver", () => {
 			folder: "scrapbook/2024/05",
 			resource_type: "image",
 		});
+	});
+
+	it("deleteOriginal extracts public_id and calls uploader.destroy", async () => {
+		process.env.CLOUDINARY_URL = "cloudinary://k:s@demo";
+		destroy.mockResolvedValue({ result: "ok" });
+
+		const { deleteOriginal } = await import("~/server/services/media-storage/cloudinary.ts");
+		await deleteOriginal(
+			"https://res.cloudinary.com/demo/image/upload/v1777719285/scrapbook/2026/05/abc.jpg",
+		);
+
+		expect(destroy).toHaveBeenCalledTimes(1);
+		expect(destroy).toHaveBeenCalledWith("scrapbook/2026/05/abc", {
+			resource_type: "image",
+			invalidate: true,
+		});
+	});
+
+	it("deleteOriginal also handles URLs without a version segment", async () => {
+		process.env.CLOUDINARY_URL = "cloudinary://k:s@demo";
+		destroy.mockResolvedValue({ result: "ok" });
+
+		const { deleteOriginal } = await import("~/server/services/media-storage/cloudinary.ts");
+		await deleteOriginal("https://res.cloudinary.com/demo/image/upload/scrapbook/2026/05/abc.jpg");
+
+		expect(destroy).toHaveBeenCalledWith(
+			"scrapbook/2026/05/abc",
+			expect.objectContaining({ resource_type: "image" }),
+		);
+	});
+
+	it("deleteOriginal is a no-op for URLs that don't match the expected shape", async () => {
+		process.env.CLOUDINARY_URL = "cloudinary://k:s@demo";
+
+		const { deleteOriginal } = await import("~/server/services/media-storage/cloudinary.ts");
+		await deleteOriginal("https://example.com/not-cloudinary/abc.jpg");
+
+		expect(destroy).not.toHaveBeenCalled();
 	});
 });

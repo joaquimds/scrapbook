@@ -1,7 +1,10 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { db } from "~/server/db/connection.ts";
 import { upsertSession } from "~/server/repositories/ingestion-sessions.ts";
 import { createScrap } from "~/server/repositories/scraps.ts";
+import { saveOriginal } from "~/server/services/media-storage/index.ts";
 import { webhook } from "~/tests/harness/app.ts";
 import { textUpdate } from "~/tests/harness/fixtures.ts";
 import { lastSentMessage } from "~/tests/harness/telegram.ts";
@@ -43,6 +46,30 @@ describe('"cancel" command', () => {
 
 		const remaining = await db.selectFrom("scraps").selectAll().execute();
 		expect(remaining).toHaveLength(0);
+	});
+
+	it("deletes the underlying media asset (local driver)", async () => {
+		const sharp = (await import("sharp")).default;
+		const buffer = await sharp({
+			create: { width: 16, height: 16, channels: 3, background: { r: 0, g: 0, b: 0 } },
+		})
+			.jpeg()
+			.toBuffer();
+		const id = "cancel-asset";
+		const { mediaUrl } = await saveOriginal({ id, buffer, ext: "jpg" });
+		const absolute = fileURLToPath(mediaUrl);
+		expect(existsSync(absolute)).toBe(true);
+
+		const scrap = await createScrap({ id, kind: "photo", body: null, mediaUrl, source: "telegram" });
+		await upsertSession({
+			chatId: CHAT_ID,
+			state: "awaitingImageKind",
+			pendingScrapIds: [scrap.id],
+		});
+
+		await webhook(textUpdate("cancel"));
+
+		expect(existsSync(absolute)).toBe(false);
 	});
 
 	it("does nothing harmful when there is no active session", async () => {
