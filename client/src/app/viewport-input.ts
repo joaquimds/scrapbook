@@ -10,7 +10,7 @@ let pinchPrevDist: number | null = null;
 let pinchPrevMid: { x: number; y: number } | null = null;
 
 function markInteracted(): void {
-	if (viewportStore.mode !== "manual") setViewportStore({ mode: "manual", preDragMode: "manual" });
+	if (!viewportStore.userInteracted) setViewportStore("userInteracted", true);
 }
 
 function zoomAround(clientX: number, clientY: number, factor: number): void {

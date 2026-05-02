@@ -5,11 +5,10 @@ import { clampScale, setViewportStore, viewportStore } from "~/client/src/stores
 
 const FIT_PADDING = 40;
 const FALLBACK_SIZE = { w: 40, h: 40 };
-const LERP_FACTOR = 0.12;
 
-function computeFitTarget(): { scale: number; tx: number; ty: number } | null {
+export function fitToBounds(): void {
 	const nodes = graphNodes();
-	if (nodes.length === 0) return null;
+	if (nodes.length === 0) return;
 
 	let minX = Infinity;
 	let minY = Infinity;
@@ -28,7 +27,7 @@ function computeFitTarget(): { scale: number; tx: number; ty: number } | null {
 		if (pos.y + halfH > maxY) maxY = pos.y + halfH;
 	}
 
-	if (!Number.isFinite(minX)) return null;
+	if (!Number.isFinite(minX)) return;
 
 	const bboxW = maxX - minX;
 	const bboxH = maxY - minY;
@@ -43,27 +42,10 @@ function computeFitTarget(): { scale: number; tx: number; ty: number } | null {
 	const tx = vw / 2 - cx * scale;
 	const ty = vh / 2 - cy * scale;
 
-	return { scale, tx, ty };
-}
-
-export function fitToBounds(): void {
-	const target = computeFitTarget();
-	if (!target) return;
-	setViewportStore(target);
-}
-
-function lerpToBounds(factor: number): void {
-	const target = computeFitTarget();
-	if (!target) return;
-	setViewportStore({
-		scale: viewportStore.scale + (target.scale - viewportStore.scale) * factor,
-		tx: viewportStore.tx + (target.tx - viewportStore.tx) * factor,
-		ty: viewportStore.ty + (target.ty - viewportStore.ty) * factor,
-	});
+	setViewportStore({ scale, tx, ty });
 }
 
 export function maybeAutoFit(): void {
-	const mode = viewportStore.mode;
-	if (mode === "auto") fitToBounds();
-	else if (mode === "drag") lerpToBounds(LERP_FACTOR);
+	if (viewportStore.userInteracted) return;
+	fitToBounds();
 }

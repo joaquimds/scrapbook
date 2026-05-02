@@ -1,5 +1,6 @@
+import { startEdgePan, stopEdgePan } from "~/client/src/app/edge-pan.ts";
 import { getSimNode, getSimulation } from "~/client/src/app/force-simulation.ts";
-import { clientToWorld, setViewportStore, viewportStore } from "~/client/src/stores/viewport.ts";
+import { clientToWorld } from "~/client/src/stores/viewport.ts";
 
 const DRAG_THRESHOLD_PX = 3;
 
@@ -19,8 +20,19 @@ export function createNodeDragHandlers(
 		startY: number;
 		offsetX: number;
 		offsetY: number;
+		lastClientX: number;
+		lastClientY: number;
 		moved: boolean;
 	} | null = null;
+
+	const applyDrag = () => {
+		if (!drag) return;
+		const sn = getSimNode(id());
+		if (!sn) return;
+		const world = clientToWorld(drag.lastClientX, drag.lastClientY);
+		sn.fx = world.x - drag.offsetX;
+		sn.fy = world.y - drag.offsetY;
+	};
 
 	const onPointerDown = (e: PointerEvent) => {
 		if (e.button !== 0) return;
@@ -34,6 +46,8 @@ export function createNodeDragHandlers(
 			startY: e.clientY,
 			offsetX: world.x - (sn.x ?? 0),
 			offsetY: world.y - (sn.y ?? 0),
+			lastClientX: e.clientX,
+			lastClientY: e.clientY,
 			moved: false,
 		};
 		e.stopPropagation();
@@ -42,25 +56,18 @@ export function createNodeDragHandlers(
 
 	const onPointerMove = (e: PointerEvent) => {
 		if (!drag || e.pointerId !== drag.pointerId) return;
-		const sn = getSimNode(id());
-		if (!sn) return;
-		const world = clientToWorld(e.clientX, e.clientY);
-		const nx = world.x - drag.offsetX;
-		const ny = world.y - drag.offsetY;
+		drag.lastClientX = e.clientX;
+		drag.lastClientY = e.clientY;
 		if (
 			!drag.moved &&
 			Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) >= DRAG_THRESHOLD_PX
 		) {
 			drag.moved = true;
 			getSimulation()?.alphaTarget(0.3).restart();
-			if (viewportStore.mode !== "drag") {
-				const preDragMode = viewportStore.mode === "manual" ? "manual" : "auto";
-				setViewportStore({ mode: "drag", preDragMode });
-			}
+			startEdgePan(id(), applyDrag);
 		}
 		if (drag.moved) {
-			sn.fx = nx;
-			sn.fy = ny;
+			applyDrag();
 		}
 	};
 
@@ -70,11 +77,9 @@ export function createNodeDragHandlers(
 		const target = e.currentTarget as HTMLElement;
 		if (target.hasPointerCapture(e.pointerId)) target.releasePointerCapture(e.pointerId);
 		drag = null;
+		stopEdgePan();
 		if (!moved) return;
 		getSimulation()?.alphaTarget(0);
-		if (viewportStore.mode === "drag") {
-			setViewportStore({ mode: viewportStore.preDragMode });
-		}
 		const sn = getSimNode(id());
 		if (!sn || sn.fx == null || sn.fy == null) return;
 		const nodeId = id();

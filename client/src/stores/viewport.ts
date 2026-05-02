@@ -1,21 +1,17 @@
 import { createStore } from "solid-js/store";
 
-export type ViewportMode = "auto" | "manual" | "drag";
-
 export interface Viewport {
 	scale: number;
 	tx: number;
 	ty: number;
-	mode: ViewportMode;
-	preDragMode: "auto" | "manual";
+	userInteracted: boolean;
 }
 
 const [viewportStore, setViewportStore] = createStore<Viewport>({
 	scale: 1,
 	tx: 0,
 	ty: 0,
-	mode: "auto",
-	preDragMode: "auto",
+	userInteracted: false,
 });
 
 export { setViewportStore, viewportStore };
