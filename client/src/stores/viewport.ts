@@ -1,3 +1,4 @@
+import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 
 export interface Viewport {
@@ -15,6 +16,13 @@ const [viewportStore, setViewportStore] = createStore<Viewport>({
 });
 
 export { setViewportStore, viewportStore };
+
+const [rasterEpoch, setRasterEpoch] = createSignal(0);
+export { rasterEpoch };
+
+export function notifyZoomEnd(): void {
+	setRasterEpoch((n) => n + 1);
+}
 
 export function clientToWorld(clientX: number, clientY: number): { x: number; y: number } {
 	return {

@@ -1,4 +1,11 @@
-import { clampScale, setViewportStore, viewportStore } from "~/client/src/stores/viewport.ts";
+import {
+	clampScale,
+	notifyZoomEnd,
+	setViewportStore,
+	viewportStore,
+} from "~/client/src/stores/viewport.ts";
+
+const ZOOM_END_DEBOUNCE_MS = 150;
 
 interface PointerState {
 	clientX: number;
@@ -8,6 +15,16 @@ interface PointerState {
 const pointers = new Map<number, PointerState>();
 let pinchPrevDist: number | null = null;
 let pinchPrevMid: { x: number; y: number } | null = null;
+let pinchActive = false;
+let wheelEndTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleWheelEnd(): void {
+	if (wheelEndTimer != null) clearTimeout(wheelEndTimer);
+	wheelEndTimer = setTimeout(() => {
+		wheelEndTimer = null;
+		notifyZoomEnd();
+	}, ZOOM_END_DEBOUNCE_MS);
+}
 
 function markInteracted(): void {
 	if (!viewportStore.userInteracted) setViewportStore("userInteracted", true);
@@ -66,7 +83,8 @@ export function onCanvasPointerMove(e: PointerEvent): void {
 					ty: viewportStore.ty + panDy,
 				});
 			}
-			if (pinchPrevDist > 0 && dist > 0) {
+			if (pinchPrevDist > 0 && dist > 0 && dist !== pinchPrevDist) {
+				pinchActive = true;
 				zoomAround(mid.x, mid.y, dist / pinchPrevDist);
 			}
 		}
@@ -82,6 +100,10 @@ export function onCanvasPointerUp(e: PointerEvent): void {
 	if (pointers.size < 2) {
 		pinchPrevDist = null;
 		pinchPrevMid = null;
+		if (pinchActive) {
+			pinchActive = false;
+			notifyZoomEnd();
+		}
 	}
 }
 
@@ -90,4 +112,5 @@ export function onCanvasWheel(e: WheelEvent): void {
 	markInteracted();
 	const factor = Math.exp(-e.deltaY * 0.0015);
 	zoomAround(e.clientX, e.clientY, factor);
+	scheduleWheelEnd();
 }

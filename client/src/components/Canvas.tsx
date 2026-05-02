@@ -1,4 +1,4 @@
-import { type Component, For, onCleanup, onMount } from "solid-js";
+import { type Component, createEffect, For, onCleanup, onMount } from "solid-js";
 import { setOnTick, startForceSimulation } from "~/client/src/app/force-simulation.ts";
 import { startIncrementalLoad } from "~/client/src/app/incremental-load.ts";
 import { maybeAutoFit } from "~/client/src/app/viewport-fit.ts";
@@ -12,10 +12,26 @@ import { Edge } from "~/client/src/components/Edge.tsx";
 import { PersonNode } from "~/client/src/components/PersonNode.tsx";
 import { ScrapNode } from "~/client/src/components/ScrapNode.tsx";
 import { graphEdges, graphNodes } from "~/client/src/stores/graph.ts";
-import { viewportStore } from "~/client/src/stores/viewport.ts";
+import { rasterEpoch, viewportStore } from "~/client/src/stores/viewport.ts";
 
 export const Canvas: Component = () => {
 	let rootEl: HTMLDivElement | undefined;
+
+	// Force the compositor to re-rasterize .viewport after a zoom gesture ends.
+	// .viewport has transform: scale(s); Chrome rasterizes its layer at layout
+	// (1×) size and GPU-upscales, so high-res images stay blurry when zoomed in
+	// until something invalidates the layer's raster scale. Window resize does
+	// it; we mimic that by alternating .canvas-root's height by 1px on each
+	// zoom-end. Must be a *persistent* change — restoring the original height
+	// in the same frame (or even seconds later) is unreliable, the compositor
+	// reads the current bounding box at composite time.
+	createEffect(() => {
+		const epoch = rasterEpoch();
+		if (epoch === 0) return;
+		const el = rootEl;
+		if (!el) return;
+		el.style.height = epoch % 2 === 0 ? "100vh" : "calc(100vh - 1px)";
+	});
 
 	onMount(() => {
 		startIncrementalLoad();
