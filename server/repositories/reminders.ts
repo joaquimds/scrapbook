@@ -5,30 +5,21 @@ import type { Person } from "~/shared/models/Person.ts";
 import { newId } from "~/shared/utils/id.ts";
 
 // Picks the person we've gone longest without touching, where "touch" =
-// contactLog entry, sent reminder, or the row's own createdAt. Anyone touched
-// inside the cooldown window is excluded so we don't pester the user about
-// the same friend on consecutive days.
+// people.last_contacted_at (atomically updated alongside contactLog inserts)
+// or a sent reminder. People who have never been touched sort first (treated
+// as -infinity). Anyone touched inside the cooldown window is excluded so we
+// don't pester the user about the same friend on consecutive days.
 export async function pickPersonDueForReminder(opts: {
 	cooldownDays: number;
 }): Promise<Person | undefined> {
 	const cooldown = sql.lit(`${opts.cooldownDays} days`);
-	const lastTouched = sql<Date>`greatest(
-		coalesce(p.last_contacted_at, p.created_at),
-		coalesce(c.last_contact,      p.created_at),
-		coalesce(r.last_reminder,     p.created_at)
-	)`;
+	const lastTouched = sql<Date>`coalesce(greatest(
+		p.last_contacted_at,
+		r.last_reminder
+	), '-infinity'::timestamptz)`;
 
 	const row = await db
 		.selectFrom("people as p")
-		.leftJoin(
-			(eb) =>
-				eb
-					.selectFrom("contactLog")
-					.select((q) => ["personId", q.fn.max("contactedAt").as("lastContact")])
-					.groupBy("personId")
-					.as("c"),
-			(join) => join.onRef("c.personId", "=", "p.id"),
-		)
 		.leftJoin(
 			(eb) =>
 				eb
@@ -55,27 +46,12 @@ export async function pickPersonDueForReminder(opts: {
 	return row;
 }
 
-// Featured first; otherwise the most recent photo tagged with the person; null if neither exists.
+// A random photo tagged with the person; null if none exists.
 export async function pickReminderScrap(personId: string): Promise<{
 	id: string;
 	mediaUrl: string | null;
 	body: string | null;
 } | null> {
-	const person = await db
-		.selectFrom("people")
-		.select(["featuredScrapId"])
-		.where("id", "=", personId)
-		.executeTakeFirst();
-
-	if (person?.featuredScrapId) {
-		const scrap = await db
-			.selectFrom("scraps")
-			.select(["id", "mediaUrl", "body"])
-			.where("id", "=", person.featuredScrapId)
-			.executeTakeFirst();
-		if (scrap) return shapeMedia(scrap);
-	}
-
 	const photo = await db
 		.selectFrom("scraps as s")
 		.innerJoin("scrapPeople as sp", "sp.scrapId", "s.id")
@@ -83,7 +59,7 @@ export async function pickReminderScrap(personId: string): Promise<{
 		.where("s.kind", "=", "photo")
 		.where("s.mediaUrl", "is not", null)
 		.select(["s.id", "s.mediaUrl", "s.body"])
-		.orderBy("s.createdAt", "desc")
+		.orderBy(sql`random()`)
 		.limit(1)
 		.executeTakeFirst();
 
