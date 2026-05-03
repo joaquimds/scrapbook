@@ -6,6 +6,7 @@ import { setNodeSize } from "~/client/src/app/node-sizes.ts";
 import { HiResImage } from "~/client/src/components/HiResImage.tsx";
 import { peopleStore } from "~/client/src/stores/people.ts";
 import { scrapsStore } from "~/client/src/stores/scraps.ts";
+import { LAYOUT_FACTOR } from "~/client/src/stores/viewport.ts";
 
 export const PersonNode: Component<{ id: string }> = (props) => {
 	const data = () => {
@@ -23,7 +24,7 @@ export const PersonNode: Component<{ id: string }> = (props) => {
 		const entry = entries[0];
 		if (!entry) return;
 		const { width, height } = entry.contentRect;
-		setNodeSize(props.id, width, height, getSimulation());
+		setNodeSize(props.id, width / LAYOUT_FACTOR, height / LAYOUT_FACTOR, getSimulation());
 	});
 	const attach = (node: HTMLDivElement) => {
 		el = node;
@@ -42,7 +43,10 @@ export const PersonNode: Component<{ id: string }> = (props) => {
 				<div
 					ref={attach}
 					class="node person-node"
-					style={{ left: `${d().pos.x}px`, top: `${d().pos.y}px` }}
+					style={{
+						left: `${d().pos.x * LAYOUT_FACTOR}px`,
+						top: `${d().pos.y * LAYOUT_FACTOR}px`,
+					}}
 					onPointerDown={drag.onPointerDown}
 					onPointerMove={drag.onPointerMove}
 					onPointerUp={drag.onPointerUp}

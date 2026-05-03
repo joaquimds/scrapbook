@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
 import { positionsStore } from "~/client/src/app/force-simulation.ts";
 import { getNodeSize } from "~/client/src/app/node-sizes.ts";
+import { LAYOUT_FACTOR } from "~/client/src/stores/viewport.ts";
 
 const FALLBACK = { w: 40, h: 40 };
 
@@ -38,12 +39,12 @@ export const Edge: Component<{ source: string; target: string }> = (props) => {
 	};
 	return (
 		<line
-			x1={ends()?.a.x ?? 0}
-			y1={ends()?.a.y ?? 0}
-			x2={ends()?.b.x ?? 0}
-			y2={ends()?.b.y ?? 0}
+			x1={(ends()?.a.x ?? 0) * LAYOUT_FACTOR}
+			y1={(ends()?.a.y ?? 0) * LAYOUT_FACTOR}
+			x2={(ends()?.b.x ?? 0) * LAYOUT_FACTOR}
+			y2={(ends()?.b.y ?? 0) * LAYOUT_FACTOR}
 			stroke="#c0392b"
-			stroke-width="1.2"
+			stroke-width="6"
 			stroke-opacity="0.7"
 		/>
 	);

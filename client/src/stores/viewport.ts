@@ -1,4 +1,3 @@
-import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 
 export interface Viewport {
@@ -8,6 +7,14 @@ export interface Viewport {
 	userInteracted: boolean;
 }
 
+// Layout is rendered LAYOUT_FACTOR× oversized; the actual CSS transform on
+// .viewport is scale(scale / LAYOUT_FACTOR), which always stays below 1×.
+// That's what keeps Safari rastering the layer at high resolution — once the
+// transform scale exceeds 1, the layer's cached bitmap upscales and images
+// blur. So LAYOUT_FACTOR must be ≥ MAX_SCALE; we keep a small margin (5 vs 4)
+// against browser raster-scale rounding.
+export const LAYOUT_FACTOR = 5;
+
 const [viewportStore, setViewportStore] = createStore<Viewport>({
 	scale: 1,
 	tx: 0,
@@ -16,13 +23,6 @@ const [viewportStore, setViewportStore] = createStore<Viewport>({
 });
 
 export { setViewportStore, viewportStore };
-
-const [rasterEpoch, setRasterEpoch] = createSignal(0);
-export { rasterEpoch };
-
-export function notifyZoomEnd(): void {
-	setRasterEpoch((n) => n + 1);
-}
 
 export function clientToWorld(clientX: number, clientY: number): { x: number; y: number } {
 	return {

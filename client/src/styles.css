@@ -43,15 +43,15 @@ body,
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 4px;
+	gap: 20px;
 	user-select: none;
 	font-family: monospace;
-	font-size: 12px;
+	font-size: 60px;
 	color: #1f2a44;
 }
 
 .node-label {
-	max-width: 140px;
+	max-width: 700px;
 	text-align: center;
 	word-break: break-word;
 }
@@ -78,20 +78,20 @@ body,
 	top: 100%;
 	left: 50%;
 	transform: translateX(-50%);
-	margin-top: 4px;
+	margin-top: 20px;
 	white-space: nowrap;
 }
 
 .person-photo {
 	display: block;
-	max-width: 80px;
+	max-width: 400px;
 	height: auto;
 	background: #fff;
 }
 
 .scrap-photo {
 	display: block;
-	max-width: 140px;
+	max-width: 700px;
 	height: auto;
 	background: #fff;
 }
@@ -117,10 +117,11 @@ body,
 }
 
 .scrap-card {
-	max-width: 140px;
-	padding: 6px 8px;
+	width: max-content;
+	max-width: 700px;
+	padding: 30px 40px;
 	background: #fffbe6;
-	border: 1px solid #a18a3f;
+	border: 5px solid #a18a3f;
 	color: #3a2f1c;
 	text-align: center;
 	word-break: break-word;
