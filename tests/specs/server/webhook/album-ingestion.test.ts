@@ -45,7 +45,7 @@ describe("Album (media_group) ingestion", () => {
 		expect(scraps.some((s) => s.body === "group caption")).toBe(true);
 	});
 
-	it("creates a single awaitingImageKind session for the whole album", async () => {
+	it("creates a single awaitingImageCaption session for the whole uncaptioned album", async () => {
 		const groupId = "group_session";
 		await webhook(photoUpdate({ mediaGroupId: groupId }));
 		await webhook(photoUpdate({ mediaGroupId: groupId }));
@@ -53,7 +53,7 @@ describe("Album (media_group) ingestion", () => {
 
 		const sessions = await db.selectFrom("ingestionSessions").selectAll().execute();
 		expect(sessions).toHaveLength(1);
-		expect(sessions[0]?.state).toBe("awaitingImageKind");
+		expect(sessions[0]?.state).toBe("awaitingImageCaption");
 	});
 
 	it("resets debounce timer when a new photo arrives before flush", async () => {

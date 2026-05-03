@@ -10,19 +10,13 @@ vi.mock("cloudinary", () => ({
 	},
 }));
 
-const ORIGINAL_DRIVER = process.env.MEDIA_DRIVER;
-const ORIGINAL_URL = process.env.CLOUDINARY_URL;
-
 afterEach(() => {
-	process.env.MEDIA_DRIVER = ORIGINAL_DRIVER;
-	process.env.CLOUDINARY_URL = ORIGINAL_URL;
 	uploadStream.mockReset();
 	destroy.mockReset();
 });
 
 describe("cloudinary driver", () => {
 	it("uploads buffer via upload_stream and returns secure_url", async () => {
-		process.env.CLOUDINARY_URL = "cloudinary://k:s@demo";
 		uploadStream.mockImplementation((_opts, cb) => ({
 			end: (buf: Buffer) => {
 				cb(null, {
@@ -54,7 +48,6 @@ describe("cloudinary driver", () => {
 	});
 
 	it("deleteOriginal extracts public_id and calls uploader.destroy", async () => {
-		process.env.CLOUDINARY_URL = "cloudinary://k:s@demo";
 		destroy.mockResolvedValue({ result: "ok" });
 
 		const { deleteOriginal } = await import("~/server/services/media-storage/cloudinary.ts");
@@ -70,7 +63,6 @@ describe("cloudinary driver", () => {
 	});
 
 	it("deleteOriginal also handles URLs without a version segment", async () => {
-		process.env.CLOUDINARY_URL = "cloudinary://k:s@demo";
 		destroy.mockResolvedValue({ result: "ok" });
 
 		const { deleteOriginal } = await import("~/server/services/media-storage/cloudinary.ts");
@@ -83,8 +75,6 @@ describe("cloudinary driver", () => {
 	});
 
 	it("deleteOriginal is a no-op for URLs that don't match the expected shape", async () => {
-		process.env.CLOUDINARY_URL = "cloudinary://k:s@demo";
-
 		const { deleteOriginal } = await import("~/server/services/media-storage/cloudinary.ts");
 		await deleteOriginal("https://example.com/not-cloudinary/abc.jpg");
 

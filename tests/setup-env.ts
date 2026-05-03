@@ -46,3 +46,4 @@ process.env.TELEGRAM_BOT_TOKEN ??= "test-bot-token";
 process.env.TELEGRAM_WEBHOOK_SECRET ??= "test-secret";
 process.env.SESSION_SECRET ??= "test-session-secret-test-session-secret";
 process.env.INVITE_CODE ??= "test-invite-code";
+process.env.CLOUDINARY_URL ??= "cloudinary://stub:stub@stub";

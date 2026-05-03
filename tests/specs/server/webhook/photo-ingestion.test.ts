@@ -45,18 +45,18 @@ describe("Single photo ingestion", () => {
 		expect(vi.mocked(tg.downloadTelegramFile).mock.calls[0]?.[0]).toBe("small_file_lg");
 	});
 
-	it("creates awaitingImageKind session", async () => {
+	it("creates awaitingImageCaption session when no caption is provided", async () => {
 		await webhook(photoUpdate());
 
 		const sessions = await db.selectFrom("ingestionSessions").selectAll().execute();
 		expect(sessions).toHaveLength(1);
-		expect(sessions[0]?.state).toBe("awaitingImageKind");
+		expect(sessions[0]?.state).toBe("awaitingImageCaption");
 	});
 
-	it("prompts for image kind after saving", async () => {
+	it("prompts for a caption after saving an uncaptioned photo", async () => {
 		await webhook(photoUpdate());
 		const messages = sentMessages();
-		expect(messages.some((m) => /photo|meme|text/i.test(m.text))).toBe(true);
+		expect(messages.some((m) => /caption|skip/i.test(m.text))).toBe(true);
 	});
 
 	it("ingests an image sent as a document (Telegram 'send as file')", async () => {
