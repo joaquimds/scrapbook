@@ -2,12 +2,7 @@ import { type Component, For, onCleanup, onMount } from "solid-js";
 import { setOnTick, startForceSimulation } from "~/client/src/app/force-simulation.ts";
 import { startIncrementalLoad } from "~/client/src/app/incremental-load.ts";
 import { maybeAutoFit } from "~/client/src/app/viewport-fit.ts";
-import {
-	onCanvasPointerDown,
-	onCanvasPointerMove,
-	onCanvasPointerUp,
-	onCanvasWheel,
-} from "~/client/src/app/viewport-input.ts";
+import { attachViewportInput, onCanvasWheel } from "~/client/src/app/viewport-input.ts";
 import { Edge } from "~/client/src/components/Edge.tsx";
 import { PersonNode } from "~/client/src/components/PersonNode.tsx";
 import { ScrapNode } from "~/client/src/components/ScrapNode.tsx";
@@ -24,10 +19,12 @@ export const Canvas: Component = () => {
 		window.addEventListener("resize", onResize);
 		const wheelHandler = (e: WheelEvent) => onCanvasWheel(e);
 		rootEl?.addEventListener("wheel", wheelHandler, { passive: false });
+		const detachInput = rootEl ? attachViewportInput(rootEl) : null;
 		onCleanup(() => {
 			setOnTick(null);
 			window.removeEventListener("resize", onResize);
 			rootEl?.removeEventListener("wheel", wheelHandler);
+			detachInput?.();
 		});
 	});
 
@@ -39,10 +36,6 @@ export const Canvas: Component = () => {
 				rootEl = el;
 			}}
 			class="canvas-root"
-			onPointerDown={onCanvasPointerDown}
-			onPointerMove={onCanvasPointerMove}
-			onPointerUp={onCanvasPointerUp}
-			onPointerCancel={onCanvasPointerUp}
 		>
 			<div
 				class="viewport"

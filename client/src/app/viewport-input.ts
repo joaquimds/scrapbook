@@ -1,13 +1,17 @@
+import { cancelActiveDrags, isDragActive } from "~/client/src/app/node-drag.ts";
 import { clampScale, setViewportStore, viewportStore } from "~/client/src/stores/viewport.ts";
 
 interface PointerState {
 	clientX: number;
 	clientY: number;
+	startedOnCanvas: boolean;
 }
 
 const pointers = new Map<number, PointerState>();
 let pinchPrevDist: number | null = null;
 let pinchPrevMid: { x: number; y: number } | null = null;
+let canvasEl: HTMLElement | null = null;
+let pinching = false;
 
 function markInteracted(): void {
 	if (!viewportStore.userInteracted) setViewportStore("userInteracted", true);
@@ -24,33 +28,48 @@ function zoomAround(clientX: number, clientY: number, factor: number): void {
 	setViewportStore({ scale: nextScale, tx, ty });
 }
 
-export function onCanvasPointerDown(e: PointerEvent): void {
-	if (e.button !== 0 && e.pointerType === "mouse") return;
-	(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-	pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
-	pinchPrevDist = null;
-	pinchPrevMid = null;
+function isWithinCanvas(target: EventTarget | null): boolean {
+	return canvasEl != null && target instanceof Node && canvasEl.contains(target);
 }
 
-export function onCanvasPointerMove(e: PointerEvent): void {
+function startedOnEmptyCanvas(target: EventTarget | null): boolean {
+	if (!(target instanceof Element)) return false;
+	if (!canvasEl) return false;
+	if (!canvasEl.contains(target)) return false;
+	return target.closest(".node") == null;
+}
+
+export function isPinchActive(): boolean {
+	return pinching;
+}
+
+function onPointerDown(e: PointerEvent): void {
+	if (!isWithinCanvas(e.target)) return;
+	if (e.pointerType === "mouse" && e.button !== 0) return;
+	pointers.set(e.pointerId, {
+		clientX: e.clientX,
+		clientY: e.clientY,
+		startedOnCanvas: startedOnEmptyCanvas(e.target),
+	});
+	if (pointers.size >= 2 && !pinching) {
+		pinching = true;
+		pinchPrevDist = null;
+		pinchPrevMid = null;
+		if (isDragActive()) cancelActiveDrags();
+	}
+}
+
+function onPointerMove(e: PointerEvent): void {
 	const prev = pointers.get(e.pointerId);
 	if (!prev) return;
-	pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+	pointers.set(e.pointerId, {
+		clientX: e.clientX,
+		clientY: e.clientY,
+		startedOnCanvas: prev.startedOnCanvas,
+	});
 
-	if (pointers.size === 1) {
-		const dx = e.clientX - prev.clientX;
-		const dy = e.clientY - prev.clientY;
-		if (dx === 0 && dy === 0) return;
-		markInteracted();
-		setViewportStore({
-			tx: viewportStore.tx + dx,
-			ty: viewportStore.ty + dy,
-		});
-		return;
-	}
-
-	if (pointers.size === 2) {
-		const [a, b] = Array.from(pointers.values());
+	if (pinching && pointers.size >= 2) {
+		const [a, b] = Array.from(pointers.values()).slice(0, 2);
 		if (!a || !b) return;
 		const dx = b.clientX - a.clientX;
 		const dy = b.clientY - a.clientY;
@@ -72,17 +91,47 @@ export function onCanvasPointerMove(e: PointerEvent): void {
 		}
 		pinchPrevDist = dist;
 		pinchPrevMid = mid;
+		return;
+	}
+
+	if (pointers.size === 1 && prev.startedOnCanvas) {
+		const dx = e.clientX - prev.clientX;
+		const dy = e.clientY - prev.clientY;
+		if (dx === 0 && dy === 0) return;
+		markInteracted();
+		setViewportStore({
+			tx: viewportStore.tx + dx,
+			ty: viewportStore.ty + dy,
+		});
 	}
 }
 
-export function onCanvasPointerUp(e: PointerEvent): void {
-	const target = e.currentTarget as HTMLElement;
-	if (target.hasPointerCapture(e.pointerId)) target.releasePointerCapture(e.pointerId);
+function onPointerUp(e: PointerEvent): void {
 	pointers.delete(e.pointerId);
 	if (pointers.size < 2) {
 		pinchPrevDist = null;
 		pinchPrevMid = null;
+		if (pointers.size === 0) pinching = false;
 	}
+}
+
+export function attachViewportInput(el: HTMLElement): () => void {
+	canvasEl = el;
+	window.addEventListener("pointerdown", onPointerDown, true);
+	window.addEventListener("pointermove", onPointerMove, true);
+	window.addEventListener("pointerup", onPointerUp, true);
+	window.addEventListener("pointercancel", onPointerUp, true);
+	return () => {
+		window.removeEventListener("pointerdown", onPointerDown, true);
+		window.removeEventListener("pointermove", onPointerMove, true);
+		window.removeEventListener("pointerup", onPointerUp, true);
+		window.removeEventListener("pointercancel", onPointerUp, true);
+		canvasEl = null;
+		pointers.clear();
+		pinching = false;
+		pinchPrevDist = null;
+		pinchPrevMid = null;
+	};
 }
 
 export function onCanvasWheel(e: WheelEvent): void {

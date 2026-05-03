@@ -4,6 +4,18 @@ import { clientToWorld, setViewportStore, viewportStore } from "~/client/src/sto
 
 const DRAG_THRESHOLD_PX = 3;
 
+const activeCancels = new Set<() => void>();
+
+export function isDragActive(): boolean {
+	return activeCancels.size > 0;
+}
+
+export function cancelActiveDrags(): void {
+	const cancels = Array.from(activeCancels);
+	activeCancels.clear();
+	for (const cancel of cancels) cancel();
+}
+
 export interface DragHandlers {
 	onPointerDown: (e: PointerEvent) => void;
 	onPointerMove: (e: PointerEvent) => void;
@@ -23,6 +35,8 @@ export function createNodeDragHandlers(
 		lastClientX: number;
 		lastClientY: number;
 		moved: boolean;
+		captureEl: HTMLElement;
+		cancel: () => void;
 	} | null = null;
 
 	const applyDrag = () => {
@@ -34,11 +48,23 @@ export function createNodeDragHandlers(
 		sn.fy = world.y - drag.offsetY;
 	};
 
+	const cancel = () => {
+		if (!drag) return;
+		const target = drag.captureEl;
+		const pointerId = drag.pointerId;
+		activeCancels.delete(drag.cancel);
+		drag = null;
+		stopEdgePan();
+		getSimulation()?.alphaTarget(0);
+		if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+	};
+
 	const onPointerDown = (e: PointerEvent) => {
-		if (e.button !== 0) return;
+		if (e.button !== 0 && e.pointerType === "mouse") return;
 		const sn = getSimNode(id());
 		if (!sn) return;
-		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		const captureEl = e.currentTarget as HTMLElement;
+		captureEl.setPointerCapture(e.pointerId);
 		const world = clientToWorld(e.clientX, e.clientY);
 		drag = {
 			pointerId: e.pointerId,
@@ -49,7 +75,10 @@ export function createNodeDragHandlers(
 			lastClientX: e.clientX,
 			lastClientY: e.clientY,
 			moved: false,
+			captureEl,
+			cancel,
 		};
+		activeCancels.add(cancel);
 		e.stopPropagation();
 		e.preventDefault();
 	};
@@ -75,8 +104,9 @@ export function createNodeDragHandlers(
 	const onPointerUp = (e: PointerEvent) => {
 		if (!drag || e.pointerId !== drag.pointerId) return;
 		const moved = drag.moved;
-		const target = e.currentTarget as HTMLElement;
+		const target = drag.captureEl;
 		if (target.hasPointerCapture(e.pointerId)) target.releasePointerCapture(e.pointerId);
+		activeCancels.delete(drag.cancel);
 		drag = null;
 		stopEdgePan();
 		if (!moved) return;
