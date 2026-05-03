@@ -4,14 +4,20 @@ import { upsertSession } from "~/server/repositories/ingestion-sessions.ts";
 import { createPerson } from "~/server/repositories/people.ts";
 import { createScrap } from "~/server/repositories/scraps.ts";
 import { webhook } from "~/tests/harness/app.ts";
+import { TEST_TELEGRAM_CHAT_ID, TEST_USER_ID } from "~/tests/harness/db.ts";
 import { textUpdate } from "~/tests/harness/fixtures.ts";
 import { lastSentMessage } from "~/tests/harness/telegram.ts";
 
-const CHAT_ID = "12345";
+const CHAT_ID = TEST_TELEGRAM_CHAT_ID;
 
 async function makeSessionWithScrap(kind: "quote" | "photo" = "quote"): Promise<string> {
-	const scrap = await createScrap({ kind, body: "test", source: "manual" });
-	await upsertSession({ chatId: CHAT_ID, state: "awaitingFriends", pendingScrapIds: [scrap.id] });
+	const scrap = await createScrap(TEST_USER_ID, { kind, body: "test", source: "manual" });
+	await upsertSession({
+		userId: TEST_USER_ID,
+		chatId: CHAT_ID,
+		state: "awaitingFriends",
+		pendingScrapIds: [scrap.id],
+	});
 	return scrap.id;
 }
 
@@ -44,7 +50,7 @@ describe("Friend tagging (awaitingFriends state)", () => {
 	});
 
 	it("matches existing people case-insensitively", async () => {
-		const existing = await createPerson({ name: "Alice" });
+		const existing = await createPerson(TEST_USER_ID, { name: "Alice" });
 		await makeSessionWithScrap();
 		await webhook(textUpdate("alice"));
 
@@ -96,9 +102,10 @@ describe("Friend tagging (awaitingFriends state)", () => {
 	});
 
 	it("adds scrap_people rows for each pending scrap id", async () => {
-		const scrap1 = await createScrap({ kind: "quote", body: "a", source: "manual" });
-		const scrap2 = await createScrap({ kind: "quote", body: "b", source: "manual" });
+		const scrap1 = await createScrap(TEST_USER_ID, { kind: "quote", body: "a", source: "manual" });
+		const scrap2 = await createScrap(TEST_USER_ID, { kind: "quote", body: "b", source: "manual" });
 		await upsertSession({
+			userId: TEST_USER_ID,
 			chatId: CHAT_ID,
 			state: "awaitingFriends",
 			pendingScrapIds: [scrap1.id, scrap2.id],

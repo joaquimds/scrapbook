@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createPerson } from "~/server/repositories/people.ts";
 import { createScrap } from "~/server/repositories/scraps.ts";
 import { req } from "~/tests/harness/app.ts";
+import { TEST_USER_ID } from "~/tests/harness/db.ts";
 
 describe("GET /api/people", () => {
 	it("returns empty page", async () => {
@@ -13,8 +14,8 @@ describe("GET /api/people", () => {
 	});
 
 	it("lists people in descending creation order", async () => {
-		await createPerson({ name: "Alice" });
-		await createPerson({ name: "Bob" });
+		await createPerson(TEST_USER_ID, { name: "Alice" });
+		await createPerson(TEST_USER_ID, { name: "Bob" });
 		const res = await req("GET", "/api/people");
 		const { items } = await res.json();
 		expect(items).toHaveLength(2);
@@ -22,9 +23,9 @@ describe("GET /api/people", () => {
 	});
 
 	it("paginates with cursor", async () => {
-		await createPerson({ name: "A" });
-		await createPerson({ name: "B" });
-		await createPerson({ name: "C" });
+		await createPerson(TEST_USER_ID, { name: "A" });
+		await createPerson(TEST_USER_ID, { name: "B" });
+		await createPerson(TEST_USER_ID, { name: "C" });
 
 		const page1res = await req("GET", "/api/people?limit=2");
 		const page1 = await page1res.json();
@@ -40,7 +41,7 @@ describe("GET /api/people", () => {
 
 describe("GET /api/people/:id", () => {
 	it("returns person by id", async () => {
-		const person = await createPerson({ name: "Alice" });
+		const person = await createPerson(TEST_USER_ID, { name: "Alice" });
 		const res = await req("GET", `/api/people/${person.id}`);
 		expect(res.status).toBe(200);
 		expect((await res.json()).name).toBe("Alice");
@@ -69,8 +70,8 @@ describe("POST /api/people", () => {
 
 describe("PATCH /api/people/:id", () => {
 	it("sets featuredScrapId", async () => {
-		const person = await createPerson({ name: "Dave" });
-		const scrap = await createScrap({ kind: "photo", body: null, source: "manual" });
+		const person = await createPerson(TEST_USER_ID, { name: "Dave" });
+		const scrap = await createScrap(TEST_USER_ID, { kind: "photo", body: null, source: "manual" });
 		const res = await req("PATCH", `/api/people/${person.id}`, {
 			body: { featuredScrapId: scrap.id },
 		});
@@ -79,8 +80,8 @@ describe("PATCH /api/people/:id", () => {
 	});
 
 	it("clears featuredScrapId to null", async () => {
-		const person = await createPerson({ name: "Eve" });
-		const scrap = await createScrap({ kind: "photo", body: null, source: "manual" });
+		const person = await createPerson(TEST_USER_ID, { name: "Eve" });
+		const scrap = await createScrap(TEST_USER_ID, { kind: "photo", body: null, source: "manual" });
 		await req("PATCH", `/api/people/${person.id}`, { body: { featuredScrapId: scrap.id } });
 		const res = await req("PATCH", `/api/people/${person.id}`, { body: { featuredScrapId: null } });
 		expect(res.status).toBe(200);

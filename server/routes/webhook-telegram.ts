@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { handleIncoming, type IncomingMessage } from "~/server/app/ingestion.ts";
+import { handleTelegramRegistration } from "~/server/app/telegram-registration.ts";
 import { env } from "~/server/env.ts";
+import { findUserByTelegramChatId } from "~/server/repositories/users.ts";
+import { sendTelegramMessage } from "~/server/services/telegram.ts";
 import { logger } from "~/server/utils/logger.ts";
 
 interface TelegramPhotoSize {
@@ -40,6 +43,7 @@ interface TelegramUpdate {
 const ALBUM_DEBOUNCE_MS = env.ALBUM_DEBOUNCE_MS;
 
 interface AlbumBuffer {
+	userId: string;
 	chatId: string;
 	media: { fileId: string; messageSid: string }[];
 	caption: string;
@@ -77,11 +81,6 @@ telegramWebhookRoute.post("/", async (c) => {
 	}
 
 	const chatId = String(message.chat.id);
-	if (env.TELEGRAM_ALLOWED_CHAT_ID && chatId !== env.TELEGRAM_ALLOWED_CHAT_ID) {
-		logger.warn({ chatId }, "Telegram message from non-allowed chat — ignored");
-		return c.json({ ok: true });
-	}
-
 	const updateId = String(update.update_id);
 	logger.info(
 		{
@@ -96,6 +95,19 @@ telegramWebhookRoute.post("/", async (c) => {
 		"Telegram message accepted",
 	);
 
+	const user = await findUserByTelegramChatId(chatId);
+	if (!user) {
+		// Registration only accepts text; tell them to drop media until signed up.
+		const text = message.text ?? message.caption ?? "";
+		const hasMedia = Boolean(pickImageFileId(message));
+		if (hasMedia && !text) {
+			await sendTelegramMessage(chatId, "Finish signup first. Send the invite code to begin.");
+			return c.json({ ok: true });
+		}
+		await handleTelegramRegistration(chatId, text);
+		return c.json({ ok: true });
+	}
+
 	// "Send as file" delivers an image as `document` (no compression / no
 	// thumbnails array). Treat image-mime documents the same as a single photo.
 	const imageFileId = pickImageFileId(message);
@@ -108,6 +120,7 @@ telegramWebhookRoute.post("/", async (c) => {
 				"buffering album photo",
 			);
 			bufferAlbumPhoto(message.media_group_id, {
+				userId: user.id,
 				chatId,
 				fileId: imageFileId,
 				messageSid: updateId,
@@ -119,6 +132,7 @@ telegramWebhookRoute.post("/", async (c) => {
 		// Single photo — dispatch immediately.
 		logger.info({ updateId, fileId: imageFileId }, "dispatching single photo");
 		await dispatch({
+			userId: user.id,
 			from: chatId,
 			text: caption,
 			media: [{ fileId: imageFileId, messageSid: updateId }],
@@ -130,6 +144,7 @@ telegramWebhookRoute.post("/", async (c) => {
 	const text = message.text ?? message.caption ?? "";
 	logger.info({ updateId, textLength: text.length }, "dispatching text message");
 	await dispatch({
+		userId: user.id,
 		from: chatId,
 		text,
 		media: [],
@@ -151,7 +166,7 @@ function pickImageFileId(message: TelegramMessage): string | null {
 
 function bufferAlbumPhoto(
 	groupId: string,
-	item: { chatId: string; fileId: string; messageSid: string; caption: string },
+	item: { userId: string; chatId: string; fileId: string; messageSid: string; caption: string },
 ): void {
 	const existing = albumBuffers.get(groupId);
 	if (existing) {
@@ -164,6 +179,7 @@ function bufferAlbumPhoto(
 		return;
 	}
 	const buffer: AlbumBuffer = {
+		userId: item.userId,
 		chatId: item.chatId,
 		media: [{ fileId: item.fileId, messageSid: item.messageSid }],
 		caption: item.caption,
@@ -184,6 +200,7 @@ async function flushAlbum(groupId: string): Promise<void> {
 		"flushing album buffer",
 	);
 	await dispatch({
+		userId: buffer.userId,
 		from: buffer.chatId,
 		text: buffer.caption,
 		media: buffer.media,
@@ -193,7 +210,12 @@ async function flushAlbum(groupId: string): Promise<void> {
 
 async function dispatch(msg: IncomingMessage): Promise<void> {
 	logger.info(
-		{ from: msg.from, mediaCount: msg.media.length, messageSid: msg.messageSid },
+		{
+			userId: msg.userId,
+			from: msg.from,
+			mediaCount: msg.media.length,
+			messageSid: msg.messageSid,
+		},
 		"dispatching to ingestion",
 	);
 	try {

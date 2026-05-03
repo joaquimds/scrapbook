@@ -4,10 +4,37 @@ import { newId } from "~/shared/utils/id.ts";
 
 const SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 
-export async function findActiveSession(chatId: string): Promise<IngestionSession | undefined> {
+interface SessionRow {
+	id: string;
+	userId: string;
+	chatId: string;
+	state: IngestionState;
+	pendingScrapIds: string[];
+	pendingPersonIds: string[];
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+function strip(row: SessionRow): IngestionSession {
+	return {
+		id: row.id,
+		chatId: row.chatId,
+		state: row.state,
+		pendingScrapIds: row.pendingScrapIds,
+		pendingPersonIds: row.pendingPersonIds,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+	};
+}
+
+export async function findActiveSession(
+	userId: string,
+	chatId: string,
+): Promise<IngestionSession | undefined> {
 	const row = await db
 		.selectFrom("ingestionSessions")
 		.selectAll()
+		.where("userId", "=", userId)
 		.where("chatId", "=", chatId)
 		.executeTakeFirst();
 	if (!row) return undefined;
@@ -15,10 +42,11 @@ export async function findActiveSession(chatId: string): Promise<IngestionSessio
 		await deleteSession(row.id);
 		return undefined;
 	}
-	return row;
+	return strip(row);
 }
 
 export async function upsertSession(input: {
+	userId: string;
 	chatId: string;
 	state: IngestionState;
 	pendingScrapIds: string[];
@@ -28,10 +56,11 @@ export async function upsertSession(input: {
 	const existing = await db
 		.selectFrom("ingestionSessions")
 		.selectAll()
+		.where("userId", "=", input.userId)
 		.where("chatId", "=", input.chatId)
 		.executeTakeFirst();
 	if (existing) {
-		return await db
+		const row = await db
 			.updateTable("ingestionSessions")
 			.set({
 				state: input.state,
@@ -41,11 +70,13 @@ export async function upsertSession(input: {
 			.where("id", "=", existing.id)
 			.returningAll()
 			.executeTakeFirstOrThrow();
+		return strip(row);
 	}
-	return await db
+	const row = await db
 		.insertInto("ingestionSessions")
 		.values({
 			id: newId(),
+			userId: input.userId,
 			chatId: input.chatId,
 			state: input.state,
 			pendingScrapIds: input.pendingScrapIds,
@@ -53,6 +84,7 @@ export async function upsertSession(input: {
 		})
 		.returningAll()
 		.executeTakeFirstOrThrow();
+	return strip(row);
 }
 
 export async function deleteSession(id: string): Promise<void> {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createPerson } from "~/server/repositories/people.ts";
 import { createScrap } from "~/server/repositories/scraps.ts";
 import { req } from "~/tests/harness/app.ts";
+import { TEST_USER_ID } from "~/tests/harness/db.ts";
 
 describe("GET /api/scraps", () => {
 	it("returns empty page when no scraps", async () => {
@@ -13,8 +14,8 @@ describe("GET /api/scraps", () => {
 	});
 
 	it("lists scraps in descending creation order", async () => {
-		await createScrap({ kind: "quote", body: "first", source: "manual" });
-		await createScrap({ kind: "quote", body: "second", source: "manual" });
+		await createScrap(TEST_USER_ID, { kind: "quote", body: "first", source: "manual" });
+		await createScrap(TEST_USER_ID, { kind: "quote", body: "second", source: "manual" });
 		const res = await req("GET", "/api/scraps");
 		const { items } = await res.json();
 		expect(items).toHaveLength(2);
@@ -23,9 +24,9 @@ describe("GET /api/scraps", () => {
 	});
 
 	it("paginates with cursor", async () => {
-		await createScrap({ kind: "quote", body: "a", source: "manual" });
-		await createScrap({ kind: "quote", body: "b", source: "manual" });
-		await createScrap({ kind: "quote", body: "c", source: "manual" });
+		await createScrap(TEST_USER_ID, { kind: "quote", body: "a", source: "manual" });
+		await createScrap(TEST_USER_ID, { kind: "quote", body: "b", source: "manual" });
+		await createScrap(TEST_USER_ID, { kind: "quote", body: "c", source: "manual" });
 
 		const res1 = await req("GET", "/api/scraps?limit=2");
 		expect(res1.status).toBe(200);
@@ -45,8 +46,13 @@ describe("GET /api/scraps", () => {
 	});
 
 	it("hydrates peopleIds on listed scraps", async () => {
-		const person = await createPerson({ name: "Alice" });
-		await createScrap({ kind: "quote", body: "hello", source: "manual", peopleIds: [person.id] });
+		const person = await createPerson(TEST_USER_ID, { name: "Alice" });
+		await createScrap(TEST_USER_ID, {
+			kind: "quote",
+			body: "hello",
+			source: "manual",
+			peopleIds: [person.id],
+		});
 		const res = await req("GET", "/api/scraps");
 		const { items } = await res.json();
 		expect(items[0].peopleIds).toEqual([person.id]);
@@ -55,7 +61,11 @@ describe("GET /api/scraps", () => {
 
 describe("GET /api/scraps/:id", () => {
 	it("returns scrap by id", async () => {
-		const scrap = await createScrap({ kind: "quote", body: "test", source: "manual" });
+		const scrap = await createScrap(TEST_USER_ID, {
+			kind: "quote",
+			body: "test",
+			source: "manual",
+		});
 		const res = await req("GET", `/api/scraps/${scrap.id}`);
 		expect(res.status).toBe(200);
 		const body = await res.json();
@@ -82,7 +92,7 @@ describe("POST /api/scraps", () => {
 	});
 
 	it("creates a scrap with peopleIds", async () => {
-		const person = await createPerson({ name: "Bob" });
+		const person = await createPerson(TEST_USER_ID, { name: "Bob" });
 		const res = await req("POST", "/api/scraps", {
 			body: { kind: "quote", body: "tagged", peopleIds: [person.id] },
 		});

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { type AuthEnv, getCurrentUserId } from "~/server/middleware/require-auth.ts";
 import {
 	createScrap,
 	findScrapById,
@@ -20,27 +21,30 @@ const PositionSchema = z.object({
 	y: z.number().finite(),
 });
 
-export const scrapsRoute = new Hono();
+export const scrapsRoute = new Hono<AuthEnv>();
 
 scrapsRoute.get("/", async (c) => {
+	const userId = getCurrentUserId(c);
 	const parsed = PageQuerySchema.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
 	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
 	const { cursor, limit } = parsed.data;
-	const page = await listScrapsPage({ cursor: decodeCursor(cursor), limit });
+	const page = await listScrapsPage(userId, { cursor: decodeCursor(cursor), limit });
 	return c.json(page);
 });
 
 scrapsRoute.get("/:id", async (c) => {
-	const scrap = await findScrapById(c.req.param("id"));
+	const userId = getCurrentUserId(c);
+	const scrap = await findScrapById(userId, c.req.param("id"));
 	if (!scrap) return c.json({ error: "not_found" }, 404);
 	return c.json(scrap);
 });
 
 scrapsRoute.post("/", async (c) => {
+	const userId = getCurrentUserId(c);
 	const body = await c.req.json();
 	const parsed = CreateScrapSchema.safeParse(body);
 	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-	const scrap = await createScrap({
+	const scrap = await createScrap(userId, {
 		kind: parsed.data.kind,
 		body: parsed.data.body,
 		source: "manual",
@@ -50,11 +54,12 @@ scrapsRoute.post("/", async (c) => {
 });
 
 scrapsRoute.patch("/:id/position", async (c) => {
+	const userId = getCurrentUserId(c);
 	const id = c.req.param("id");
 	const parsed = PositionSchema.safeParse(await c.req.json());
 	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-	const existing = await findScrapById(id);
+	const existing = await findScrapById(userId, id);
 	if (!existing) return c.json({ error: "not_found" }, 404);
-	await updateScrapPosition(id, parsed.data.x, parsed.data.y);
+	await updateScrapPosition(userId, id, parsed.data.x, parsed.data.y);
 	return c.json({ ok: true });
 });

@@ -1,3 +1,4 @@
+import { db } from "~/server/db/connection.ts";
 import { env } from "~/server/env.ts";
 import { deleteSession, upsertSession } from "~/server/repositories/ingestion-sessions.ts";
 import {
@@ -13,34 +14,41 @@ import type { IngestionSession } from "~/shared/models/IngestionSession.ts";
 
 const ACK_WINDOW_HOURS = 24;
 
-// Selects the friend most overdue for a touch and DMs the user about them.
-// At most one reminder per run; safe to invoke repeatedly (no-op if there's
-// an outstanding reminder waiting on a reply).
+// Iterates every user and runs one reminder pass for each. At most one reminder
+// is sent per user per call; safe to invoke repeatedly.
 export async function runDailyReminder(): Promise<void> {
-	const chatId = env.TELEGRAM_ALLOWED_CHAT_ID;
-	if (!chatId) {
-		logger.warn("runDailyReminder: TELEGRAM_ALLOWED_CHAT_ID not set — skipping");
-		return;
+	const users = await db.selectFrom("users").select(["id", "telegramChatId"]).execute();
+	logger.info({ userCount: users.length }, "runDailyReminder: iterating users");
+	for (const user of users) {
+		try {
+			await runDailyReminderForUser(user.id, user.telegramChatId);
+		} catch (err) {
+			logger.error({ err, userId: user.id }, "runDailyReminder: user run failed");
+		}
 	}
+}
 
-	const person = await pickPersonDueForReminder({ cooldownDays: env.REMINDER_COOLDOWN_DAYS });
+async function runDailyReminderForUser(userId: string, chatId: string): Promise<void> {
+	const person = await pickPersonDueForReminder(userId, {
+		cooldownDays: env.REMINDER_COOLDOWN_DAYS,
+	});
 	if (!person) {
-		logger.info("runDailyReminder: no person due — skipping");
+		logger.info({ userId }, "runDailyReminder: no person due for user — skipping");
 		return;
 	}
 
-	if (await hasUnackedReminder(person.id, ACK_WINDOW_HOURS)) {
+	if (await hasUnackedReminder(userId, person.id, ACK_WINDOW_HOURS)) {
 		logger.info(
-			{ personId: person.id, name: person.name },
+			{ userId, personId: person.id, name: person.name },
 			"runDailyReminder: outstanding reminder for person — skipping",
 		);
 		return;
 	}
 
-	const scrap = await pickReminderScrap(person.id);
+	const scrap = await pickReminderScrap(userId, person.id);
 	const caption = `Reach out to ${person.name}?`;
 	logger.info(
-		{ personId: person.id, name: person.name, scrapId: scrap?.id ?? null },
+		{ userId, personId: person.id, name: person.name, scrapId: scrap?.id ?? null },
 		"runDailyReminder: sending reminder",
 	);
 
@@ -55,8 +63,9 @@ export async function runDailyReminder(): Promise<void> {
 		await sendTelegramMessage(chatId, caption);
 	}
 
-	await recordReminderSent(person.id, scrap?.id ?? null);
+	await recordReminderSent(userId, person.id, scrap?.id ?? null);
 	await upsertSession({
+		userId,
 		chatId,
 		state: "awaitingContactReply",
 		pendingScrapIds: [],
@@ -70,6 +79,7 @@ export async function runDailyReminder(): Promise<void> {
 
 // Returns true if it handled the reply (caller should return early).
 export async function handleContactReply(
+	userId: string,
 	session: IngestionSession,
 	chatId: string,
 	text: string,
@@ -82,8 +92,8 @@ export async function handleContactReply(
 
 	if (/^(y|yes|yeah|yep|done|ok|okay|✓)$/.test(t)) {
 		for (const personId of session.pendingPersonIds) {
-			await recordContact(personId);
-			logger.info({ personId }, "logged contact via reminder reply");
+			await recordContact(userId, personId);
+			logger.info({ userId, personId }, "logged contact via reminder reply");
 		}
 		await deleteSession(session.id);
 		await sendTelegramMessage(chatId, "Logged. ✓");

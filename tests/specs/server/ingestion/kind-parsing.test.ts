@@ -3,14 +3,20 @@ import { db } from "~/server/db/connection.ts";
 import { upsertSession } from "~/server/repositories/ingestion-sessions.ts";
 import { createScrap } from "~/server/repositories/scraps.ts";
 import { webhook } from "~/tests/harness/app.ts";
+import { TEST_TELEGRAM_CHAT_ID, TEST_USER_ID } from "~/tests/harness/db.ts";
 import { textUpdate } from "~/tests/harness/fixtures.ts";
 import { lastSentMessage } from "~/tests/harness/telegram.ts";
 
-const CHAT_ID = "12345";
+const CHAT_ID = TEST_TELEGRAM_CHAT_ID;
 
 async function makePhotoSession(): Promise<string> {
-	const scrap = await createScrap({ kind: "photo", body: null, source: "manual" });
-	await upsertSession({ chatId: CHAT_ID, state: "awaitingImageKind", pendingScrapIds: [scrap.id] });
+	const scrap = await createScrap(TEST_USER_ID, { kind: "photo", body: null, source: "manual" });
+	await upsertSession({
+		userId: TEST_USER_ID,
+		chatId: CHAT_ID,
+		state: "awaitingImageKind",
+		pendingScrapIds: [scrap.id],
+	});
 	return scrap.id;
 }
 
@@ -56,9 +62,10 @@ describe("Image kind parsing (awaitingImageKind state)", () => {
 	});
 
 	it("updates kind for all pending scrap ids", async () => {
-		const scrap1 = await createScrap({ kind: "photo", body: null, source: "manual" });
-		const scrap2 = await createScrap({ kind: "photo", body: null, source: "manual" });
+		const scrap1 = await createScrap(TEST_USER_ID, { kind: "photo", body: null, source: "manual" });
+		const scrap2 = await createScrap(TEST_USER_ID, { kind: "photo", body: null, source: "manual" });
 		await upsertSession({
+			userId: TEST_USER_ID,
 			chatId: CHAT_ID,
 			state: "awaitingImageKind",
 			pendingScrapIds: [scrap1.id, scrap2.id],

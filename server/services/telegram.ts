@@ -76,7 +76,10 @@ export async function sendTelegramPhoto(
 	const apiUrl = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendPhoto`;
 
 	if (/^https?:\/\//.test(mediaUrl)) {
-		logger.info({ chatId, mediaUrl, hasCaption: Boolean(caption) }, "sending Telegram photo by URL");
+		logger.info(
+			{ chatId, mediaUrl, hasCaption: Boolean(caption) },
+			"sending Telegram photo by URL",
+		);
 		const res = await fetch(apiUrl, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },

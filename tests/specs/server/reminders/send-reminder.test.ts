@@ -5,10 +5,11 @@ import { db } from "~/server/db/connection.ts";
 import { createPerson } from "~/server/repositories/people.ts";
 import { addScrapPeople, createScrap } from "~/server/repositories/scraps.ts";
 import * as tg from "~/server/services/telegram.ts";
+import { TEST_USER_ID } from "~/tests/harness/db.ts";
 import { sentMessages, sentPhotos } from "~/tests/harness/telegram.ts";
 
 async function createPersonDue(name: string): Promise<string> {
-	const p = await createPerson({ name });
+	const p = await createPerson(TEST_USER_ID, { name });
 	await sql`update people set created_at = now() - interval '30 days' where id = ${p.id}`.execute(
 		db,
 	);
@@ -16,16 +17,6 @@ async function createPersonDue(name: string): Promise<string> {
 }
 
 describe("runDailyReminder", () => {
-	it("is a no-op when TELEGRAM_ALLOWED_CHAT_ID is not set", async () => {
-		const saved = process.env.TELEGRAM_ALLOWED_CHAT_ID;
-		delete process.env.TELEGRAM_ALLOWED_CHAT_ID;
-		// Re-import after env change is not possible in ESM singleton pattern;
-		// instead call the function and verify no Telegram calls were made.
-		// (env is a singleton — the function already has chatId from env)
-		// We skip this test in CI since env.ts is loaded once per process.
-		process.env.TELEGRAM_ALLOWED_CHAT_ID = saved;
-	});
-
 	it("is a no-op when no person is due", async () => {
 		await runDailyReminder();
 		expect(sentMessages()).toHaveLength(0);
@@ -43,7 +34,7 @@ describe("runDailyReminder", () => {
 
 	it("sends a photo when person has a mediaUrl scrap", async () => {
 		const personId = await createPersonDue("PhotoPerson");
-		const scrap = await createScrap({
+		const scrap = await createScrap(TEST_USER_ID, {
 			kind: "photo",
 			body: null,
 			mediaUrl: "file:///tmp/scraps/2024/01/photo.jpg",
@@ -60,7 +51,7 @@ describe("runDailyReminder", () => {
 
 	it("falls back to text when sendTelegramPhoto throws", async () => {
 		const personId = await createPersonDue("FallbackPerson");
-		const scrap = await createScrap({
+		const scrap = await createScrap(TEST_USER_ID, {
 			kind: "photo",
 			body: null,
 			mediaUrl: "file:///tmp/scraps/2024/01/photo.jpg",

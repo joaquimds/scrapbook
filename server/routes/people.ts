@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { type AuthEnv, getCurrentUserId } from "~/server/middleware/require-auth.ts";
 import {
 	createPerson,
 	findPersonById,
@@ -18,47 +19,52 @@ const PositionSchema = z.object({
 	y: z.number().finite(),
 });
 
-export const peopleRoute = new Hono();
+export const peopleRoute = new Hono<AuthEnv>();
 
 peopleRoute.get("/", async (c) => {
+	const userId = getCurrentUserId(c);
 	const parsed = PageQuerySchema.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
 	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
 	const { cursor, limit } = parsed.data;
-	const page = await listPeoplePage({ cursor: decodeCursor(cursor), limit });
+	const page = await listPeoplePage(userId, { cursor: decodeCursor(cursor), limit });
 	return c.json(page);
 });
 
 peopleRoute.get("/:id", async (c) => {
-	const person = await findPersonById(c.req.param("id"));
+	const userId = getCurrentUserId(c);
+	const person = await findPersonById(userId, c.req.param("id"));
 	if (!person) return c.json({ error: "not_found" }, 404);
 	return c.json(person);
 });
 
 peopleRoute.post("/", async (c) => {
+	const userId = getCurrentUserId(c);
 	const parsed = CreatePersonSchema.safeParse(await c.req.json());
 	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-	const person = await createPerson(parsed.data);
+	const person = await createPerson(userId, parsed.data);
 	return c.json(person, 201);
 });
 
 peopleRoute.patch("/:id", async (c) => {
+	const userId = getCurrentUserId(c);
 	const id = c.req.param("id");
 	const parsed = PatchPersonSchema.safeParse(await c.req.json());
 	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
 	if (parsed.data.featuredScrapId !== undefined) {
-		await setFeaturedScrap(id, parsed.data.featuredScrapId);
+		await setFeaturedScrap(userId, id, parsed.data.featuredScrapId);
 	}
-	const person = await findPersonById(id);
+	const person = await findPersonById(userId, id);
 	if (!person) return c.json({ error: "not_found" }, 404);
 	return c.json(person);
 });
 
 peopleRoute.patch("/:id/position", async (c) => {
+	const userId = getCurrentUserId(c);
 	const id = c.req.param("id");
 	const parsed = PositionSchema.safeParse(await c.req.json());
 	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-	const existing = await findPersonById(id);
+	const existing = await findPersonById(userId, id);
 	if (!existing) return c.json({ error: "not_found" }, 404);
-	await updatePersonPosition(id, parsed.data.x, parsed.data.y);
+	await updatePersonPosition(userId, id, parsed.data.x, parsed.data.y);
 	return c.json({ ok: true });
 });

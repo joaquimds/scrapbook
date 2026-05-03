@@ -1,7 +1,12 @@
 import "dotenv/config";
 import { db } from "~/server/db/connection.ts";
-import { createPerson, setFeaturedScrap, updatePersonPosition } from "~/server/repositories/people.ts";
+import {
+	createPerson,
+	setFeaturedScrap,
+	updatePersonPosition,
+} from "~/server/repositories/people.ts";
 import { createScrap, updateScrapPosition } from "~/server/repositories/scraps.ts";
+import { createUser, findUserByUsername } from "~/server/repositories/users.ts";
 import { deleteOriginal, saveOriginal } from "~/server/services/media-storage/index.ts";
 import { logger } from "~/server/utils/logger.ts";
 import { newId } from "~/shared/utils/id.ts";
@@ -14,15 +19,26 @@ interface Args {
 	fixed: Fixed;
 	people: number;
 	scraps: number;
+	username: string;
 }
 
 function parseArgs(): Args {
 	const argv = process.argv.slice(2);
-	const out: Args = { connectivity: "dense", fixed: "majority", people: 30, scraps: 200 };
+	const out: Args = {
+		connectivity: "dense",
+		fixed: "majority",
+		people: 30,
+		scraps: 200,
+		username: "seed",
+	};
 	for (let i = 0; i < argv.length; i++) {
 		const flag = argv[i];
 		const value = argv[i + 1];
-		if (flag === "--connectivity") {
+		if (flag === "--username") {
+			if (!value) throw new Error("--username requires a value");
+			out.username = value;
+			i++;
+		} else if (flag === "--connectivity") {
 			if (value !== "dense" && value !== "sparse" && value !== "none") {
 				throw new Error(`--connectivity must be dense|sparse|none, got ${value}`);
 			}
@@ -54,11 +70,56 @@ function parseArgs(): Args {
 }
 
 const FIRST_NAMES = [
-	"Paul", "James", "Linda", "Maya", "Theo", "Iris", "Otis", "Nora", "Cleo", "Felix",
-	"Hugo", "Ada", "Rumi", "Sasha", "Wren", "Ezra", "Juno", "Kai", "Luna", "Milo",
-	"Nico", "Opal", "Pia", "Quinn", "Remy", "Stella", "Tomás", "Una", "Vera", "Wes",
-	"Xan", "Yara", "Zane", "Anya", "Bram", "Cora", "Dax", "Esme", "Finn", "Gia",
-	"Hari", "Ines", "Joss", "Kira", "Leo", "Mira", "Niko", "Orla", "Pax", "Reza",
+	"Paul",
+	"James",
+	"Linda",
+	"Maya",
+	"Theo",
+	"Iris",
+	"Otis",
+	"Nora",
+	"Cleo",
+	"Felix",
+	"Hugo",
+	"Ada",
+	"Rumi",
+	"Sasha",
+	"Wren",
+	"Ezra",
+	"Juno",
+	"Kai",
+	"Luna",
+	"Milo",
+	"Nico",
+	"Opal",
+	"Pia",
+	"Quinn",
+	"Remy",
+	"Stella",
+	"Tomás",
+	"Una",
+	"Vera",
+	"Wes",
+	"Xan",
+	"Yara",
+	"Zane",
+	"Anya",
+	"Bram",
+	"Cora",
+	"Dax",
+	"Esme",
+	"Finn",
+	"Gia",
+	"Hari",
+	"Ines",
+	"Joss",
+	"Kira",
+	"Leo",
+	"Mira",
+	"Niko",
+	"Orla",
+	"Pax",
+	"Reza",
 ];
 
 const QUOTE_TEMPLATES = [
@@ -100,11 +161,12 @@ async function fetchBuffer(url: string): Promise<Buffer> {
 	return Buffer.from(await res.arrayBuffer());
 }
 
-async function reset(): Promise<void> {
-	logger.info("deleting media originals");
+async function reset(userId: string): Promise<void> {
+	logger.info({ userId }, "deleting media originals for user");
 	const mediaRows = await db
 		.selectFrom("scraps")
 		.select("mediaUrl")
+		.where("userId", "=", userId)
 		.where("mediaUrl", "is not", null)
 		.execute();
 	for (const row of mediaRows) {
@@ -115,11 +177,21 @@ async function reset(): Promise<void> {
 			logger.warn({ err, mediaUrl: row.mediaUrl }, "failed to delete media original");
 		}
 	}
-	logger.info("clearing tables");
-	// Order matters: scraps first (cascades scrapPeople, nulls featuredScrapId on people),
-	// then people (cascades reminders, contactLog, ingestionSessions).
-	await db.deleteFrom("scraps").execute();
-	await db.deleteFrom("people").execute();
+	logger.info({ userId }, "clearing user's rows");
+	await db.deleteFrom("scraps").where("userId", "=", userId).execute();
+	await db.deleteFrom("people").where("userId", "=", userId).execute();
+}
+
+async function ensureSeedUser(username: string): Promise<string> {
+	const existing = await findUserByUsername(username);
+	if (existing) return existing.id;
+	const created = await createUser({
+		username,
+		password: "seed-password",
+		telegramChatId: `seed:${username}`,
+	});
+	logger.info({ userId: created.id, username }, "created seed user (password: seed-password)");
+	return created.id;
 }
 
 function pickName(seenNames: Set<string>, index: number): string {
@@ -179,7 +251,8 @@ async function main(): Promise<void> {
 	const args = parseArgs();
 	logger.info({ args }, "seeding");
 
-	await reset();
+	const userId = await ensureSeedUser(args.username);
+	await reset(userId);
 
 	const totalClusters =
 		args.connectivity === "sparse" ? Math.max(2, Math.min(6, Math.round(args.people / 8))) : 1;
@@ -191,7 +264,7 @@ async function main(): Promise<void> {
 		const name = pickName(seenNames, i);
 		const clusterIdx = args.connectivity === "sparse" ? i % totalClusters : 0;
 		const avatarId = ((i * 7) % 70) + 1; // pravatar ids run 1..70
-		const created = await createPerson({ name });
+		const created = await createPerson(userId, { name });
 		people.push({ id: created.id, name, clusterIdx, avatarId });
 	}
 
@@ -200,7 +273,7 @@ async function main(): Promise<void> {
 		const buffer = await fetchBuffer(`https://i.pravatar.cc/600?img=${person.avatarId}`);
 		const id = newId();
 		const { mediaUrl } = await saveOriginal({ id, buffer, ext: "jpg" });
-		const scrap = await createScrap({
+		const scrap = await createScrap(userId, {
 			id,
 			kind: "photo",
 			body: `${person.name} in their natural habitat`,
@@ -208,7 +281,7 @@ async function main(): Promise<void> {
 			source: "manual",
 			peopleIds: [person.id],
 		});
-		await setFeaturedScrap(person.id, scrap.id);
+		await setFeaturedScrap(userId, person.id, scrap.id);
 	}
 
 	const peopleByCluster = new Map<number, SeedPerson[]>();
@@ -226,10 +299,20 @@ async function main(): Promise<void> {
 			const clusterIdx = i % totalClusters;
 			const pool = peopleByCluster.get(clusterIdx) ?? [];
 			const tagCount = Math.min(pool.length, 1 + Math.floor(Math.random() * 3));
-			return { peopleIds: shuffle(pool).slice(0, tagCount).map((p) => p.id), clusterIdx };
+			return {
+				peopleIds: shuffle(pool)
+					.slice(0, tagCount)
+					.map((p) => p.id),
+				clusterIdx,
+			};
 		}
 		const tagCount = Math.min(people.length, 1 + Math.floor(Math.random() * 3));
-		return { peopleIds: shuffle(people).slice(0, tagCount).map((p) => p.id), clusterIdx: 0 };
+		return {
+			peopleIds: shuffle(people)
+				.slice(0, tagCount)
+				.map((p) => p.id),
+			clusterIdx: 0,
+		};
 	};
 
 	interface ScrapPlacement {
@@ -241,15 +324,20 @@ async function main(): Promise<void> {
 	const quoteCount = Math.min(QUOTE_COUNT, args.scraps);
 	const photoCount = args.scraps - quoteCount;
 
-	logger.info({ count: photoCount, concurrency: PHOTO_DOWNLOAD_CONCURRENCY }, "creating photo scraps");
+	logger.info(
+		{ count: photoCount, concurrency: PHOTO_DOWNLOAD_CONCURRENCY },
+		"creating photo scraps",
+	);
 	let photoCursor = 0;
 	const makePhoto = async (i: number): Promise<void> => {
 		const { peopleIds, clusterIdx } = tagsForIndex(i);
 		const seed = `seed-photo-${i}-${Math.random().toString(36).slice(2, 8)}`;
-		const buffer = await fetchBuffer(`https://picsum.photos/seed/${encodeURIComponent(seed)}/800/600`);
+		const buffer = await fetchBuffer(
+			`https://picsum.photos/seed/${encodeURIComponent(seed)}/800/600`,
+		);
 		const id = newId();
 		const { mediaUrl } = await saveOriginal({ id, buffer, ext: "jpg" });
-		const created = await createScrap({
+		const created = await createScrap(userId, {
 			id,
 			kind: "photo",
 			body: pickRandom(PHOTO_CAPTIONS),
@@ -271,7 +359,7 @@ async function main(): Promise<void> {
 	for (let i = 0; i < quoteCount; i++) {
 		const { peopleIds, clusterIdx } = tagsForIndex(photoCount + i);
 		const body = pickRandom(QUOTE_TEMPLATES);
-		const created = await createScrap({ kind: "quote", body, source: "manual", peopleIds });
+		const created = await createScrap(userId, { kind: "quote", body, source: "manual", peopleIds });
 		scrapPlacements.push({ id: created.id, clusterIdx });
 	}
 
@@ -282,13 +370,13 @@ async function main(): Promise<void> {
 		for (const person of people) {
 			if (Math.random() > fixedFraction) continue;
 			const center = clusterCenter(person.clusterIdx, totalClusters);
-			await updatePersonPosition(person.id, center.x + jitter(), center.y + jitter());
+			await updatePersonPosition(userId, person.id, center.x + jitter(), center.y + jitter());
 		}
 
 		for (const placement of scrapPlacements) {
 			if (Math.random() > fixedFraction) continue;
 			const center = clusterCenter(placement.clusterIdx, totalClusters);
-			await updateScrapPosition(placement.id, center.x + jitter(), center.y + jitter());
+			await updateScrapPosition(userId, placement.id, center.x + jitter(), center.y + jitter());
 		}
 	}
 

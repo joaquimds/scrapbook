@@ -1,5 +1,5 @@
 import { beforeEach, vi } from "vitest";
-import { truncateAll } from "~/tests/harness/db.ts";
+import { seedTestUser, truncateAll } from "~/tests/harness/db.ts";
 
 vi.mock("~/server/services/telegram.ts", () => ({
 	sendTelegramMessage: vi.fn().mockResolvedValue(undefined),
@@ -18,5 +18,6 @@ vi.mock("~/server/services/telegram.ts", () => ({
 
 beforeEach(async () => {
 	await truncateAll();
+	await seedTestUser();
 	vi.clearAllMocks();
 });

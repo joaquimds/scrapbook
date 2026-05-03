@@ -9,9 +9,12 @@ import { newId } from "~/shared/utils/id.ts";
 // or a sent reminder. People who have never been touched sort first (treated
 // as -infinity). Anyone touched inside the cooldown window is excluded so we
 // don't pester the user about the same friend on consecutive days.
-export async function pickPersonDueForReminder(opts: {
-	cooldownDays: number;
-}): Promise<Person | undefined> {
+export async function pickPersonDueForReminder(
+	userId: string,
+	opts: {
+		cooldownDays: number;
+	},
+): Promise<Person | undefined> {
 	const cooldown = sql.lit(`${opts.cooldownDays} days`);
 	const lastTouched = sql<Date>`coalesce(greatest(
 		p.last_contacted_at,
@@ -25,6 +28,7 @@ export async function pickPersonDueForReminder(opts: {
 				eb
 					.selectFrom("remindersSent")
 					.select((q) => ["personId", q.fn.max("sentAt").as("lastReminder")])
+					.where("userId", "=", userId)
 					.groupBy("personId")
 					.as("r"),
 			(join) => join.onRef("r.personId", "=", "p.id"),
@@ -38,6 +42,7 @@ export async function pickPersonDueForReminder(opts: {
 			"p.x",
 			"p.y",
 		])
+		.where("p.userId", "=", userId)
 		.where(sql<boolean>`${lastTouched} < now() - ${cooldown}::interval`)
 		.orderBy(lastTouched, "asc")
 		.limit(1)
@@ -46,8 +51,11 @@ export async function pickPersonDueForReminder(opts: {
 	return row;
 }
 
-// A random photo tagged with the person; null if none exists.
-export async function pickReminderScrap(personId: string): Promise<{
+// A random photo tagged with the person, scoped to the user; null if none exists.
+export async function pickReminderScrap(
+	userId: string,
+	personId: string,
+): Promise<{
 	id: string;
 	mediaUrl: string | null;
 	body: string | null;
@@ -56,6 +64,7 @@ export async function pickReminderScrap(personId: string): Promise<{
 		.selectFrom("scraps as s")
 		.innerJoin("scrapPeople as sp", "sp.scrapId", "s.id")
 		.where("sp.personId", "=", personId)
+		.where("s.userId", "=", userId)
 		.where("s.kind", "=", "photo")
 		.where("s.mediaUrl", "is not", null)
 		.select(["s.id", "s.mediaUrl", "s.body"])
@@ -70,24 +79,37 @@ function shapeMedia<T extends { mediaUrl: string | null }>(row: T): T {
 	return { ...row, mediaUrl: row.mediaUrl ? toClientMediaUrl(row.mediaUrl) : null };
 }
 
-export async function recordReminderSent(personId: string, scrapId: string | null): Promise<void> {
-	await db.insertInto("remindersSent").values({ id: newId(), personId, scrapId }).execute();
+export async function recordReminderSent(
+	userId: string,
+	personId: string,
+	scrapId: string | null,
+): Promise<void> {
+	await db.insertInto("remindersSent").values({ id: newId(), userId, personId, scrapId }).execute();
 }
 
-export async function recordContact(personId: string, note: string | null = null): Promise<void> {
+export async function recordContact(
+	userId: string,
+	personId: string,
+	note: string | null = null,
+): Promise<void> {
 	await db.transaction().execute(async (trx) => {
-		await trx.insertInto("contactLog").values({ id: newId(), personId, note }).execute();
+		await trx.insertInto("contactLog").values({ id: newId(), userId, personId, note }).execute();
 		await trx
 			.updateTable("people")
 			.set({ lastContactedAt: sql<Date>`now()` })
 			.where("id", "=", personId)
+			.where("userId", "=", userId)
 			.execute();
 	});
 }
 
 // Was a reminder sent in the last `withinHours` hours that hasn't been
 // acknowledged via contactLog? Used to avoid re-sending in the same window.
-export async function hasUnackedReminder(personId: string, withinHours: number): Promise<boolean> {
+export async function hasUnackedReminder(
+	userId: string,
+	personId: string,
+	withinHours: number,
+): Promise<boolean> {
 	const row = await db
 		.selectFrom("remindersSent as r")
 		.leftJoin("contactLog as c", (join) =>
@@ -95,6 +117,7 @@ export async function hasUnackedReminder(personId: string, withinHours: number):
 		)
 		.select(["r.id"])
 		.where("r.personId", "=", personId)
+		.where("r.userId", "=", userId)
 		.where(sql<boolean>`r.sent_at >= now() - ${sql.lit(`${withinHours} hours`)}::interval`)
 		.where("c.id", "is", null)
 		.limit(1)

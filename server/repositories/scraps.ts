@@ -21,6 +21,7 @@ interface CreateScrapInput {
 
 interface ScrapRow {
 	id: string;
+	userId: string;
 	kind: ScrapKind;
 	body: string | null;
 	mediaUrl: string | null;
@@ -31,7 +32,7 @@ interface ScrapRow {
 	y: number | null;
 }
 
-export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
+export async function createScrap(userId: string, input: CreateScrapInput): Promise<Scrap> {
 	const id = input.id ?? newId();
 	const peopleIds = input.peopleIds ?? [];
 
@@ -40,6 +41,7 @@ export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
 			.insertInto("scraps")
 			.values({
 				id,
+				userId,
 				kind: input.kind,
 				body: input.body,
 				mediaUrl: input.mediaUrl ?? null,
@@ -61,32 +63,60 @@ export async function createScrap(input: CreateScrapInput): Promise<Scrap> {
 	return shape(row, peopleIds);
 }
 
-export async function updateScrapKind(scrapId: string, kind: ScrapKind): Promise<void> {
-	await db.updateTable("scraps").set({ kind }).where("id", "=", scrapId).execute();
+export async function updateScrapKind(
+	userId: string,
+	scrapId: string,
+	kind: ScrapKind,
+): Promise<void> {
+	await db
+		.updateTable("scraps")
+		.set({ kind })
+		.where("id", "=", scrapId)
+		.where("userId", "=", userId)
+		.execute();
 }
 
-export async function updateScrapBody(scrapId: string, body: string | null): Promise<void> {
-	await db.updateTable("scraps").set({ body }).where("id", "=", scrapId).execute();
+export async function updateScrapBody(
+	userId: string,
+	scrapId: string,
+	body: string | null,
+): Promise<void> {
+	await db
+		.updateTable("scraps")
+		.set({ body })
+		.where("id", "=", scrapId)
+		.where("userId", "=", userId)
+		.execute();
 }
 
-export async function updateScrapPosition(scrapId: string, x: number, y: number): Promise<void> {
-	await db.updateTable("scraps").set({ x, y }).where("id", "=", scrapId).execute();
+export async function updateScrapPosition(
+	userId: string,
+	scrapId: string,
+	x: number,
+	y: number,
+): Promise<void> {
+	await db
+		.updateTable("scraps")
+		.set({ x, y })
+		.where("id", "=", scrapId)
+		.where("userId", "=", userId)
+		.execute();
 }
 
-export async function deleteScraps(ids: string[]): Promise<void> {
+export async function deleteScraps(userId: string, ids: string[]): Promise<void> {
 	if (ids.length === 0) return;
-	await db.deleteFrom("scraps").where("id", "in", ids).execute();
+	await db.deleteFrom("scraps").where("id", "in", ids).where("userId", "=", userId).execute();
 }
 
 // Returns raw stored mediaUrls (un-shaped — file:// or https:// as written by
-// the driver) for the given scrap ids. Use this when deleting media assets;
-// the route-shaped URLs from `findScrapById` aren't usable for that.
-export async function getRawMediaUrls(ids: string[]): Promise<string[]> {
+// the driver) for the given scrap ids belonging to the user.
+export async function getRawMediaUrls(userId: string, ids: string[]): Promise<string[]> {
 	if (ids.length === 0) return [];
 	const rows = await db
 		.selectFrom("scraps")
 		.select("mediaUrl")
 		.where("id", "in", ids)
+		.where("userId", "=", userId)
 		.where("mediaUrl", "is not", null)
 		.execute();
 	return rows.map((r) => r.mediaUrl).filter((u): u is string => u !== null);
@@ -113,29 +143,53 @@ export async function addScrapPeople(scrapId: string, peopleIds: string[]): Prom
 		.execute();
 }
 
-export async function findScrapByExternalMessageId(messageId: string): Promise<Scrap | undefined> {
+export async function findScrapByExternalMessageId(
+	userId: string,
+	messageId: string,
+): Promise<Scrap | undefined> {
 	const row = await db
 		.selectFrom("scraps")
 		.selectAll()
 		.where("externalMessageId", "=", messageId)
+		.where("userId", "=", userId)
 		.executeTakeFirst();
 	if (!row) return undefined;
 	return await hydrate(row);
 }
 
-export async function findScrapById(id: string): Promise<Scrap | undefined> {
-	const row = await db.selectFrom("scraps").selectAll().where("id", "=", id).executeTakeFirst();
+export async function findScrapById(userId: string, id: string): Promise<Scrap | undefined> {
+	const row = await db
+		.selectFrom("scraps")
+		.selectAll()
+		.where("id", "=", id)
+		.where("userId", "=", userId)
+		.executeTakeFirst();
 	if (!row) return undefined;
 	return await hydrate(row);
 }
 
-export async function listScrapsPage(opts: {
-	cursor?: Cursor;
-	limit: number;
-}): Promise<PageOfScraps> {
+// Loads a scrap by id without a user filter. Use only for media access checks
+// where you need to know the owning user; never returns the row to the client.
+export async function findScrapOwner(id: string): Promise<{ userId: string } | undefined> {
+	const row = await db
+		.selectFrom("scraps")
+		.select("userId")
+		.where("id", "=", id)
+		.executeTakeFirst();
+	return row ?? undefined;
+}
+
+export async function listScrapsPage(
+	userId: string,
+	opts: {
+		cursor?: Cursor;
+		limit: number;
+	},
+): Promise<PageOfScraps> {
 	let q = db
 		.selectFrom("scraps")
 		.selectAll()
+		.where("userId", "=", userId)
 		.orderBy("createdAt", "desc")
 		.orderBy("id", "desc")
 		.limit(opts.limit + 1);

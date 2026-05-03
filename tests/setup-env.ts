@@ -44,5 +44,5 @@ process.env.STORAGE_ROOT = storageRoot;
 
 process.env.TELEGRAM_BOT_TOKEN ??= "test-bot-token";
 process.env.TELEGRAM_WEBHOOK_SECRET ??= "test-secret";
-process.env.TELEGRAM_ALLOWED_CHAT_ID ??= "12345";
-process.env.AUTH_PASSWORD ??= "test-password";
+process.env.SESSION_SECRET ??= "test-session-secret-test-session-secret";
+process.env.INVITE_CODE ??= "test-invite-code";

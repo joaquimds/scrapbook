@@ -4,15 +4,17 @@ import { upsertSession } from "~/server/repositories/ingestion-sessions.ts";
 import { createPerson } from "~/server/repositories/people.ts";
 import { addScrapPeople, createScrap } from "~/server/repositories/scraps.ts";
 import { webhook } from "~/tests/harness/app.ts";
+import { TEST_TELEGRAM_CHAT_ID, TEST_USER_ID } from "~/tests/harness/db.ts";
 import { textUpdate } from "~/tests/harness/fixtures.ts";
 
-const CHAT_ID = "12345";
+const CHAT_ID = TEST_TELEGRAM_CHAT_ID;
 
 async function makeSinglePhotoWithOnePerson(): Promise<{ scrapId: string; personId: string }> {
-	const person = await createPerson({ name: "Featured Person" });
-	const scrap = await createScrap({ kind: "photo", body: null, source: "manual" });
+	const person = await createPerson(TEST_USER_ID, { name: "Featured Person" });
+	const scrap = await createScrap(TEST_USER_ID, { kind: "photo", body: null, source: "manual" });
 	await addScrapPeople(scrap.id, [person.id]);
 	await upsertSession({
+		userId: TEST_USER_ID,
 		chatId: CHAT_ID,
 		state: "awaitingFeaturedDecision",
 		pendingScrapIds: [scrap.id],
@@ -66,8 +68,9 @@ describe("Featured photo decision (awaitingFeaturedDecision state)", () => {
 	});
 
 	it("triggers awaitingFeaturedDecision when tagging single photo with single person", async () => {
-		const scrap = await createScrap({ kind: "photo", body: null, source: "manual" });
+		const scrap = await createScrap(TEST_USER_ID, { kind: "photo", body: null, source: "manual" });
 		await upsertSession({
+			userId: TEST_USER_ID,
 			chatId: CHAT_ID,
 			state: "awaitingFriends",
 			pendingScrapIds: [scrap.id],
@@ -81,8 +84,9 @@ describe("Featured photo decision (awaitingFeaturedDecision state)", () => {
 	});
 
 	it("does not trigger awaitingFeaturedDecision for multiple people", async () => {
-		const scrap = await createScrap({ kind: "photo", body: null, source: "manual" });
+		const scrap = await createScrap(TEST_USER_ID, { kind: "photo", body: null, source: "manual" });
 		await upsertSession({
+			userId: TEST_USER_ID,
 			chatId: CHAT_ID,
 			state: "awaitingFriends",
 			pendingScrapIds: [scrap.id],

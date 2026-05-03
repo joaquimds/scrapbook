@@ -27,6 +27,7 @@ interface IncomingMedia {
 }
 
 export interface IncomingMessage {
+	userId: string;
 	from: string; // Telegram chat id (numeric, stringified)
 	text: string;
 	media: IncomingMedia[];
@@ -36,6 +37,7 @@ export interface IncomingMessage {
 export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 	logger.info(
 		{
+			userId: msg.userId,
 			from: msg.from,
 			mediaCount: msg.media.length,
 			textLength: msg.text.length,
@@ -49,13 +51,13 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 	}
 
 	// Idempotency on Telegram update_id.
-	const existing = await findScrapByExternalMessageId(msg.messageSid);
+	const existing = await findScrapByExternalMessageId(msg.userId, msg.messageSid);
 	if (existing) {
 		logger.info({ messageSid: msg.messageSid }, "duplicate webhook ignored");
 		return;
 	}
 
-	const session = await findActiveSession(msg.from);
+	const session = await findActiveSession(msg.userId, msg.from);
 	const text = msg.text.trim();
 	logger.info(
 		{
@@ -72,7 +74,7 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 				{ from: msg.from, state: session.state, scrapIds: session.pendingScrapIds },
 				"cancelling scrap-add flow",
 			);
-			const mediaUrls = await getRawMediaUrls(session.pendingScrapIds);
+			const mediaUrls = await getRawMediaUrls(msg.userId, session.pendingScrapIds);
 			for (const url of mediaUrls) {
 				try {
 					await deleteOriginal(url);
@@ -80,7 +82,7 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 					logger.error({ err, url }, "failed to delete media asset on cancel");
 				}
 			}
-			await deleteScraps(session.pendingScrapIds);
+			await deleteScraps(msg.userId, session.pendingScrapIds);
 			await deleteSession(session.id);
 			await sendTelegramMessage(msg.from, "Cancelled. Nothing saved.");
 		} else {
@@ -95,7 +97,7 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 			await sendTelegramMessage(msg.from, "Send me a quote, image, or song to scrap.");
 			return;
 		}
-		const scrap = await createScrap({
+		const scrap = await createScrap(msg.userId, {
 			kind: "quote",
 			body: text,
 			source: "telegram",
@@ -103,6 +105,7 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		});
 		logger.info({ scrapId: scrap.id, from: msg.from }, "created quote scrap");
 		await upsertSession({
+			userId: msg.userId,
 			chatId: msg.from,
 			state: "awaitingFriends",
 			pendingScrapIds: [scrap.id],
@@ -115,7 +118,7 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 	}
 
 	if (session.state === "awaitingContactReply") {
-		const handled = await handleContactReply(session, msg.from, text);
+		const handled = await handleContactReply(msg.userId, session, msg.from, text);
 		if (handled) return;
 		// fall through: empty text with no reply state — clear and prompt.
 		await sendTelegramMessage(msg.from, "Send me a quote, image, or song to scrap.");
@@ -130,12 +133,13 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 				"saving caption",
 			);
 			for (const scrapId of session.pendingScrapIds) {
-				await updateScrapBody(scrapId, text);
+				await updateScrapBody(msg.userId, scrapId, text);
 			}
 		} else {
 			logger.info({ from: msg.from }, "user skipped caption");
 		}
 		await upsertSession({
+			userId: msg.userId,
 			chatId: msg.from,
 			state: "awaitingImageKind",
 			pendingScrapIds: session.pendingScrapIds,
@@ -159,9 +163,10 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		}
 		logger.info({ from: msg.from, kind, scrapIds: session.pendingScrapIds }, "updating scrap kind");
 		for (const scrapId of session.pendingScrapIds) {
-			await updateScrapKind(scrapId, kind);
+			await updateScrapKind(msg.userId, scrapId, kind);
 		}
 		await upsertSession({
+			userId: msg.userId,
 			chatId: msg.from,
 			state: "awaitingFriends",
 			pendingScrapIds: session.pendingScrapIds,
@@ -182,7 +187,7 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		}
 		const names = parseFriendNames(text);
 		logger.info({ from: msg.from, names }, "parsed friend names");
-		const people = await resolveOrCreatePeople(names);
+		const people = await resolveOrCreatePeople(msg.userId, names);
 		logger.info(
 			{
 				from: msg.from,
@@ -203,9 +208,10 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 			session.pendingScrapIds.length === 1 ? session.pendingScrapIds[0] : undefined;
 		const onlyPerson = people.length === 1 ? people[0] : undefined;
 		if (onlyScrapId && onlyPerson) {
-			const scrap = await findScrapById(onlyScrapId);
+			const scrap = await findScrapById(msg.userId, onlyScrapId);
 			if (scrap?.kind === "photo") {
 				await upsertSession({
+					userId: msg.userId,
 					chatId: msg.from,
 					state: "awaitingFeaturedDecision",
 					pendingScrapIds: [onlyScrapId],
@@ -229,10 +235,10 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		const onlyScrapId = session.pendingScrapIds[0];
 		logger.info({ from: msg.from, yes, onlyScrapId }, "featured-photo decision");
 		if (yes && onlyScrapId) {
-			const scrap = await findScrapById(onlyScrapId);
+			const scrap = await findScrapById(msg.userId, onlyScrapId);
 			const personId = scrap?.peopleIds[0];
 			if (scrap && personId) {
-				await setFeaturedScrap(personId, scrap.id);
+				await setFeaturedScrap(msg.userId, personId, scrap.id);
 				logger.info({ scrapId: scrap.id, personId }, "set featured scrap");
 			}
 			await sendTelegramMessage(msg.from, "Set as featured photo. ✨ Send another any time.");
@@ -259,7 +265,7 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 	// batch as a replay. (Telegram albums arrive as N updates collapsed into
 	// one IncomingMessage by the webhook.)
 	for (const m of msg.media) {
-		const existing = await findScrapByExternalMessageId(m.messageSid);
+		const existing = await findScrapByExternalMessageId(msg.userId, m.messageSid);
 		if (existing) {
 			logger.info({ messageSid: m.messageSid }, "duplicate media webhook ignored");
 			return;
@@ -276,7 +282,7 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 			const id = newId();
 			const { mediaUrl } = await saveOriginal({ id, buffer, ext });
 			logger.info({ id, mediaUrl, bytes: buffer.length }, "saved original media");
-			const scrap = await createScrap({
+			const scrap = await createScrap(msg.userId, {
 				id,
 				kind: "photo",
 				body: caption,
@@ -299,6 +305,7 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 	const noun = scrapIds.length > 1 ? `${scrapIds.length} images` : "image";
 	if (caption) {
 		await upsertSession({
+			userId: msg.userId,
 			chatId: msg.from,
 			state: "awaitingImageKind",
 			pendingScrapIds: scrapIds,
@@ -311,14 +318,12 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 	}
 
 	await upsertSession({
+		userId: msg.userId,
 		chatId: msg.from,
 		state: "awaitingImageCaption",
 		pendingScrapIds: scrapIds,
 	});
-	await sendTelegramMessage(
-		msg.from,
-		`Saved ${noun}. Add a caption, or reply "skip".`,
-	);
+	await sendTelegramMessage(msg.from, `Saved ${noun}. Add a caption, or reply "skip".`);
 }
 
 const CANCELLABLE_STATES = new Set([

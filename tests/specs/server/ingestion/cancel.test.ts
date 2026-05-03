@@ -6,10 +6,11 @@ import { upsertSession } from "~/server/repositories/ingestion-sessions.ts";
 import { createScrap } from "~/server/repositories/scraps.ts";
 import { saveOriginal } from "~/server/services/media-storage/index.ts";
 import { webhook } from "~/tests/harness/app.ts";
+import { TEST_TELEGRAM_CHAT_ID, TEST_USER_ID } from "~/tests/harness/db.ts";
 import { textUpdate } from "~/tests/harness/fixtures.ts";
 import { lastSentMessage } from "~/tests/harness/telegram.ts";
 
-const CHAT_ID = "12345";
+const CHAT_ID = TEST_TELEGRAM_CHAT_ID;
 
 describe('"cancel" command', () => {
 	it.each([
@@ -18,8 +19,9 @@ describe('"cancel" command', () => {
 		"Cancel",
 		"CANCEL",
 	])("%s aborts the awaitingImageKind flow and deletes pending scraps", async (input) => {
-		const scrap = await createScrap({ kind: "photo", body: null, source: "manual" });
+		const scrap = await createScrap(TEST_USER_ID, { kind: "photo", body: null, source: "manual" });
 		await upsertSession({
+			userId: TEST_USER_ID,
 			chatId: CHAT_ID,
 			state: "awaitingImageKind",
 			pendingScrapIds: [scrap.id],
@@ -35,8 +37,13 @@ describe('"cancel" command', () => {
 	});
 
 	it("aborts the awaitingFriends flow", async () => {
-		const scrap = await createScrap({ kind: "quote", body: "hi", source: "telegram" });
+		const scrap = await createScrap(TEST_USER_ID, {
+			kind: "quote",
+			body: "hi",
+			source: "telegram",
+		});
 		await upsertSession({
+			userId: TEST_USER_ID,
 			chatId: CHAT_ID,
 			state: "awaitingFriends",
 			pendingScrapIds: [scrap.id],
@@ -60,7 +67,7 @@ describe('"cancel" command', () => {
 		const absolute = fileURLToPath(mediaUrl);
 		expect(existsSync(absolute)).toBe(true);
 
-		const scrap = await createScrap({
+		const scrap = await createScrap(TEST_USER_ID, {
 			id,
 			kind: "photo",
 			body: null,
@@ -68,6 +75,7 @@ describe('"cancel" command', () => {
 			source: "telegram",
 		});
 		await upsertSession({
+			userId: TEST_USER_ID,
 			chatId: CHAT_ID,
 			state: "awaitingImageKind",
 			pendingScrapIds: [scrap.id],

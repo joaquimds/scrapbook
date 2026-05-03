@@ -3,14 +3,16 @@ import { db } from "~/server/db/connection.ts";
 import { upsertSession } from "~/server/repositories/ingestion-sessions.ts";
 import { createPerson } from "~/server/repositories/people.ts";
 import { webhook } from "~/tests/harness/app.ts";
+import { TEST_TELEGRAM_CHAT_ID, TEST_USER_ID } from "~/tests/harness/db.ts";
 import { textUpdate } from "~/tests/harness/fixtures.ts";
 import { lastSentMessage } from "~/tests/harness/telegram.ts";
 
-const CHAT_ID = "12345";
+const CHAT_ID = TEST_TELEGRAM_CHAT_ID;
 
 async function makeContactReplySession(personName: string): Promise<string> {
-	const person = await createPerson({ name: personName });
+	const person = await createPerson(TEST_USER_ID, { name: personName });
 	await upsertSession({
+		userId: TEST_USER_ID,
 		chatId: CHAT_ID,
 		state: "awaitingContactReply",
 		pendingScrapIds: [],

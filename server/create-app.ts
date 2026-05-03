@@ -13,6 +13,7 @@ export function createApp(): Hono {
 	app.route("/api/auth", authRoute);
 	app.route("/api/webhooks/telegram", telegramWebhookRoute);
 	app.use("/api/*", requireAuth);
+	app.use("/media/*", requireAuth);
 	app.route("/api/scraps", scrapsRoute);
 	app.route("/api/people", peopleRoute);
 	app.route("/media", mediaRoute);
