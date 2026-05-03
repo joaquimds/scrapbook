@@ -65,6 +65,10 @@ export async function updateScrapKind(scrapId: string, kind: ScrapKind): Promise
 	await db.updateTable("scraps").set({ kind }).where("id", "=", scrapId).execute();
 }
 
+export async function updateScrapBody(scrapId: string, body: string | null): Promise<void> {
+	await db.updateTable("scraps").set({ body }).where("id", "=", scrapId).execute();
+}
+
 export async function updateScrapPosition(scrapId: string, x: number, y: number): Promise<void> {
 	await db.updateTable("scraps").set({ x, y }).where("id", "=", scrapId).execute();
 }

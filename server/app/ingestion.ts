@@ -12,6 +12,7 @@ import {
 	findScrapByExternalMessageId,
 	findScrapById,
 	getRawMediaUrls,
+	updateScrapBody,
 	updateScrapKind,
 } from "~/server/repositories/scraps.ts";
 import { deleteOriginal, saveOriginal } from "~/server/services/media-storage/index.ts";
@@ -118,6 +119,31 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		if (handled) return;
 		// fall through: empty text with no reply state — clear and prompt.
 		await sendTelegramMessage(msg.from, "Send me a quote, image, or song to scrap.");
+		return;
+	}
+
+	if (session.state === "awaitingImageCaption") {
+		const isSkip = text.toLowerCase() === "skip" || text === "";
+		if (!isSkip) {
+			logger.info(
+				{ from: msg.from, scrapIds: session.pendingScrapIds, captionLength: text.length },
+				"saving caption",
+			);
+			for (const scrapId of session.pendingScrapIds) {
+				await updateScrapBody(scrapId, text);
+			}
+		} else {
+			logger.info({ from: msg.from }, "user skipped caption");
+		}
+		await upsertSession({
+			chatId: msg.from,
+			state: "awaitingImageKind",
+			pendingScrapIds: session.pendingScrapIds,
+		});
+		await sendTelegramMessage(
+			msg.from,
+			"What kind — photo, meme, or text? (text = a screenshot of writing)",
+		);
 		return;
 	}
 
@@ -270,19 +296,33 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 		return;
 	}
 
+	const noun = scrapIds.length > 1 ? `${scrapIds.length} images` : "image";
+	if (caption) {
+		await upsertSession({
+			chatId: msg.from,
+			state: "awaitingImageKind",
+			pendingScrapIds: scrapIds,
+		});
+		await sendTelegramMessage(
+			msg.from,
+			`Saved ${noun}. What kind — photo, meme, or text? (text = a screenshot of writing)`,
+		);
+		return;
+	}
+
 	await upsertSession({
 		chatId: msg.from,
-		state: "awaitingImageKind",
+		state: "awaitingImageCaption",
 		pendingScrapIds: scrapIds,
 	});
-	const noun = scrapIds.length > 1 ? `${scrapIds.length} images` : "image";
 	await sendTelegramMessage(
 		msg.from,
-		`Saved ${noun}. What kind — photo, meme, or text? (text = a screenshot of writing)`,
+		`Saved ${noun}. Add a caption, or reply "skip".`,
 	);
 }
 
 const CANCELLABLE_STATES = new Set([
+	"awaitingImageCaption",
 	"awaitingImageKind",
 	"awaitingFriends",
 	"awaitingFeaturedDecision",
