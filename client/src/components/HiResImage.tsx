@@ -7,7 +7,10 @@ export const HiResImage: Component<{
 	class: string;
 	title?: string;
 }> = (props) => {
-	const [loaded, setLoaded] = createSignal(false);
+	const [thumbSettled, setThumbSettled] = createSignal(false);
+	const [hiResLoaded, setHiResLoaded] = createSignal(false);
+
+	const canLoadHiRes = () => !props.thumbUrl || thumbSettled();
 
 	return (
 		<div class="photo-wrap">
@@ -19,18 +22,20 @@ export const HiResImage: Component<{
 						alt={props.alt}
 						title={props.title}
 						draggable={false}
+						onLoad={() => setThumbSettled(true)}
+						onError={() => setThumbSettled(true)}
 					/>
 				)}
 			</Show>
-			<Show when={props.mediaUrl}>
+			<Show when={canLoadHiRes() && props.mediaUrl}>
 				{(m) => (
 					<img
-						class={`${props.class} photo-overlay${loaded() ? " loaded" : ""}`}
+						class={`${props.class} photo-overlay${hiResLoaded() ? " loaded" : ""}`}
 						src={m()}
 						alt={props.alt}
 						title={props.title}
 						draggable={false}
-						onLoad={() => setLoaded(true)}
+						onLoad={() => setHiResLoaded(true)}
 					/>
 				)}
 			</Show>
