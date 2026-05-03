@@ -67,7 +67,7 @@ telegramWebhookRoute.post("/", async (c) => {
 
 	const update = (await c.req.json()) as TelegramUpdate;
 	logger.info(
-		{ updateId: update.update_id, hasMessage: !!update.message },
+		{ updateId: update.update_id, hasMessage: Boolean(update.message) },
 		"Telegram webhook received",
 	);
 	const message = update.message;

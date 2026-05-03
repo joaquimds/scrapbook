@@ -19,7 +19,7 @@ const EnvSchema = z
 		REMINDER_COOLDOWN_DAYS: z.coerce.number().int().nonnegative().default(14),
 		ALBUM_DEBOUNCE_MS: z.coerce.number().int().nonnegative().default(1500),
 	})
-	.refine((e) => e.MEDIA_DRIVER !== "cloudinary" || !!e.CLOUDINARY_URL, {
+	.refine((e) => e.MEDIA_DRIVER !== "cloudinary" || Boolean(e.CLOUDINARY_URL), {
 		message: "CLOUDINARY_URL is required when MEDIA_DRIVER=cloudinary",
 		path: ["CLOUDINARY_URL"],
 	});

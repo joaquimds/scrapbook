@@ -1,5 +1,4 @@
 import {
-	forceCenter,
 	forceLink,
 	forceManyBody,
 	forceSimulation,
@@ -53,6 +52,47 @@ export function getSimNode(id: string): SimNode | undefined {
 const RECT_FALLBACK = { w: 40, h: 40 };
 const RECT_PAD = 24;
 
+// Like forceCenter, but targets the centroid of the *fixed* nodes instead of
+// a hard-coded world point. A vanilla forceCenter targeting (W/2, H/2) drives
+// the steady state to `mean_all = target`, which means with many fixed nodes
+// clustered far from world-centre, the few unfixed nodes are pushed to the
+// opposite side just to balance the mean. Anchoring the target on the fixed
+// cluster makes the equilibrium for unfixed nodes the cluster itself.
+function clusterCenter() {
+	let nodes: SimNode[] = [];
+	const force = () => {
+		if (nodes.length === 0) return;
+		let fx = 0;
+		let fy = 0;
+		let nf = 0;
+		for (const node of nodes) {
+			if (node.fx != null && node.fy != null) {
+				fx += node.fx;
+				fy += node.fy;
+				nf += 1;
+			}
+		}
+		const tx = nf > 0 ? fx / nf : window.innerWidth / 2;
+		const ty = nf > 0 ? fy / nf : window.innerHeight / 2;
+		let mx = 0;
+		let my = 0;
+		for (const node of nodes) {
+			mx += node.x ?? 0;
+			my += node.y ?? 0;
+		}
+		mx = mx / nodes.length - tx;
+		my = my / nodes.length - ty;
+		for (const node of nodes) {
+			node.x = (node.x ?? 0) - mx;
+			node.y = (node.y ?? 0) - my;
+		}
+	};
+	force.initialize = (n: SimNode[]) => {
+		nodes = n;
+	};
+	return force;
+}
+
 // Custom collision force: treats each node as a padded axis-aligned rectangle
 // using sizes measured from the DOM (see node-sizes.ts). On each tick it
 // resolves any overlapping pair along the axis of smaller penetration.
@@ -100,6 +140,7 @@ export function startForceSimulation(): void {
 		// Reuse SimNode instances across renders so x/y/vx/vy carry over and
 		// the layout doesn't snap on every data update.
 		const nextNodes: SimNode[] = [];
+		const newUnfixed: SimNode[] = [];
 		for (const n of nodes) {
 			let sn = simNodes.get(n.id);
 			const persisted = n.nodeKind === "scrap" ? scrapsStore.byId[n.id] : peopleStore.byId[n.id];
@@ -113,19 +154,38 @@ export function startForceSimulation(): void {
 						fx: persisted.x,
 						fy: persisted.y,
 					};
+					simNodes.set(n.id, sn);
 				} else {
-					sn = {
-						id: n.id,
-						nodeKind: n.nodeKind,
-						x: window.innerWidth / 2 + (Math.random() - 0.5) * 50,
-						y: window.innerHeight / 2 + (Math.random() - 0.5) * 50,
-					};
+					sn = { id: n.id, nodeKind: n.nodeKind };
+					simNodes.set(n.id, sn);
+					newUnfixed.push(sn);
 				}
-				simNodes.set(n.id, sn);
 			} else {
 				sn.nodeKind = n.nodeKind;
 			}
 			nextNodes.push(sn);
+		}
+
+		// Spawn new unfixed nodes near the centroid of fixed nodes (the
+		// existing cluster), with a small jitter so they don't stack. Falls
+		// back to viewport-centre when there are no fixed nodes yet.
+		if (newUnfixed.length > 0) {
+			let fx = 0;
+			let fy = 0;
+			let nf = 0;
+			for (const sn of simNodes.values()) {
+				if (sn.fx != null && sn.fy != null) {
+					fx += sn.fx;
+					fy += sn.fy;
+					nf += 1;
+				}
+			}
+			const tx = nf > 0 ? fx / nf : window.innerWidth / 2;
+			const ty = nf > 0 ? fy / nf : window.innerHeight / 2;
+			for (const sn of newUnfixed) {
+				sn.x = tx + (Math.random() - 0.5) * 50;
+				sn.y = ty + (Math.random() - 0.5) * 50;
+			}
 		}
 		// Drop nodes that no longer exist
 		for (const id of simNodes.keys()) {
@@ -145,11 +205,10 @@ export function startForceSimulation(): void {
 						.id((d) => d.id)
 						.distance(80),
 				)
-				.force("charge", forceManyBody().strength(-200))
+				.force("charge", forceManyBody().strength(-200).distanceMax(400))
 				.force("collide", rectCollide())
-				.force("center", forceCenter(window.innerWidth / 2, window.innerHeight / 2))
+				.force("center", clusterCenter())
 				.on("tick", flushPositions);
-			window.addEventListener("resize", handleResize);
 		} else {
 			simulation.nodes(nextNodes);
 			(simulation.force("link") as ReturnType<typeof forceLink<SimNode, SimEdge>>).links(nextEdges);
@@ -158,17 +217,9 @@ export function startForceSimulation(): void {
 	});
 
 	onCleanup(() => {
-		window.removeEventListener("resize", handleResize);
 		simulation?.stop();
 		simulation = null;
 	});
-}
-
-function handleResize(): void {
-	const center = simulation?.force("center") as ReturnType<typeof forceCenter> | undefined;
-	if (!center) return;
-	center.x(window.innerWidth / 2).y(window.innerHeight / 2);
-	simulation?.alpha(0.3).restart();
 }
 
 function flushPositions(): void {

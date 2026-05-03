@@ -4,3 +4,4 @@ storage/
 *.log
 .env
 .DS_Store
+dump.psql

@@ -99,5 +99,5 @@ export async function hasUnackedReminder(personId: string, withinHours: number):
 		.where("c.id", "is", null)
 		.limit(1)
 		.executeTakeFirst();
-	return !!row;
+	return Boolean(row);
 }
