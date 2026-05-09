@@ -1,3 +1,7 @@
+:root {
+	--color-bg: #f5efe1;
+}
+
 html,
 body,
 #root {
@@ -7,6 +11,7 @@ body,
 	width: 100%;
 	overflow: hidden;
 	font-family: monospace;
+	background: var(--color-bg);
 }
 
 .canvas-root {
@@ -14,7 +19,7 @@ body,
 	width: 100vw;
 	height: 100vh;
 	overflow: hidden;
-	background: #f5efe1;
+	background: var(--color-bg);
 	touch-action: none;
 }
 
@@ -207,7 +212,7 @@ body,
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: #f5efe1;
+	background: var(--color-bg);
 }
 
 .login-card {
