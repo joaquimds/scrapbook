@@ -1,13 +1,13 @@
 import { db } from "~/server/db/connection.ts";
 
-export type RegistrationStep = "awaiting_invite_code" | "awaiting_username" | "awaiting_password";
+export type RegistrationStep = "awaiting_invite_code" | "awaiting_username";
 
 export interface Registration {
 	chatId: string;
 	step: RegistrationStep;
 	username: string | null;
-	createdAt: Date;
-	updatedAt: Date;
+	createdAt: string;
+	updatedAt: string;
 }
 
 export async function findRegistration(chatId: string): Promise<Registration | undefined> {

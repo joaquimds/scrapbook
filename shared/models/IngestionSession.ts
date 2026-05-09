@@ -16,8 +16,8 @@ export const IngestionSessionSchema = z.object({
 	state: IngestionStateSchema,
 	pendingScrapIds: z.array(z.string()),
 	pendingPersonIds: z.array(z.string()),
-	createdAt: z.date(),
-	updatedAt: z.date(),
+	createdAt: z.iso.datetime(),
+	updatedAt: z.iso.datetime(),
 });
 
 export type IngestionSession = z.infer<typeof IngestionSessionSchema>;

@@ -27,7 +27,7 @@ interface ScrapRow {
 	mediaUrl: string | null;
 	source: ScrapSource;
 	externalMessageId: string | null;
-	createdAt: Date;
+	createdAt: string;
 	x: number | null;
 	y: number | null;
 }

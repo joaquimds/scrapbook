@@ -16,7 +16,7 @@ export async function pickPersonDueForReminder(
 	},
 ): Promise<Person | undefined> {
 	const cooldown = sql.lit(`${opts.cooldownDays} days`);
-	const lastTouched = sql<Date>`coalesce(greatest(
+	const lastTouched = sql<string>`coalesce(greatest(
 		p.last_contacted_at,
 		r.last_reminder
 	), '-infinity'::timestamptz)`;
@@ -96,7 +96,7 @@ export async function recordContact(
 		await trx.insertInto("contactLog").values({ id: newId(), userId, personId, note }).execute();
 		await trx
 			.updateTable("people")
-			.set({ lastContactedAt: sql<Date>`now()` })
+			.set({ lastContactedAt: sql<string>`now()` })
 			.where("id", "=", personId)
 			.where("userId", "=", userId)
 			.execute();

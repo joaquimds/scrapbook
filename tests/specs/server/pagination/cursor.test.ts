@@ -3,11 +3,11 @@ import { decodeCursor, encodeCursor, PageQuerySchema } from "~/server/utils/pagi
 
 describe("encodeCursor / decodeCursor round-trip", () => {
 	it("round-trips a cursor", () => {
-		const date = new Date("2024-06-15T12:00:00.000Z");
-		const original = { createdAt: date, id: "abc123" };
+		const iso = "2024-06-15T12:00:00.000Z";
+		const original = { createdAt: iso, id: "abc123" };
 		const encoded = encodeCursor(original);
 		const decoded = decodeCursor(encoded);
-		expect(decoded?.createdAt.toISOString()).toBe(date.toISOString());
+		expect(decoded?.createdAt).toBe(iso);
 		expect(decoded?.id).toBe("abc123");
 	});
 

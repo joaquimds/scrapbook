@@ -14,7 +14,7 @@ export const ScrapSchema = z.object({
 	thumbnailUrl: z.string().nullable(),
 	source: ScrapSourceSchema,
 	externalMessageId: z.string().nullable(),
-	createdAt: z.date(),
+	createdAt: z.iso.datetime(),
 	x: z.number().nullable(),
 	y: z.number().nullable(),
 	peopleIds: z.array(z.string()),

@@ -6,13 +6,13 @@ import { newId } from "~/shared/utils/id.ts";
 interface UserRow {
 	id: string;
 	username: string;
-	passwordHash: string;
+	passwordHash: string | null;
 	telegramChatId: string;
-	createdAt: Date;
+	createdAt: string;
 }
 
 export interface UserWithHash extends User {
-	passwordHash: string;
+	passwordHash: string | null;
 }
 
 function shape(row: UserRow): UserWithHash {
@@ -68,7 +68,6 @@ export async function isUsernameTaken(username: string): Promise<boolean> {
 
 export async function createUser(input: {
 	username: string;
-	password: string;
 	telegramChatId: string;
 }): Promise<User> {
 	const id = newId();
@@ -77,10 +76,18 @@ export async function createUser(input: {
 		.values({
 			id,
 			username: input.username,
-			passwordHash: hashPassword(input.password),
+			passwordHash: null,
 			telegramChatId: input.telegramChatId,
 		})
 		.returningAll()
 		.executeTakeFirstOrThrow();
 	return strip(shape(row));
+}
+
+export async function setUserPassword(userId: string, plain: string): Promise<void> {
+	await db
+		.updateTable("users")
+		.set({ passwordHash: hashPassword(plain) })
+		.where("id", "=", userId)
+		.execute();
 }

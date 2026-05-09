@@ -6,7 +6,7 @@ import {
 	updatePersonPosition,
 } from "~/server/repositories/people.ts";
 import { createScrap, updateScrapPosition } from "~/server/repositories/scraps.ts";
-import { createUser, findUserByUsername } from "~/server/repositories/users.ts";
+import { createUser, findUserByUsername, setUserPassword } from "~/server/repositories/users.ts";
 import { deleteOriginal, saveOriginal } from "~/server/services/media-storage/index.ts";
 import { logger } from "~/server/utils/logger.ts";
 import { newId } from "~/shared/utils/id.ts";
@@ -185,11 +185,8 @@ async function reset(userId: string): Promise<void> {
 async function ensureSeedUser(username: string): Promise<string> {
 	const existing = await findUserByUsername(username);
 	if (existing) return existing.id;
-	const created = await createUser({
-		username,
-		password: "seed-password",
-		telegramChatId: `seed:${username}`,
-	});
+	const created = await createUser({ username, telegramChatId: `seed:${username}` });
+	await setUserPassword(created.id, "seed-password");
 	logger.info({ userId: created.id, username }, "created seed user (password: seed-password)");
 	return created.id;
 }

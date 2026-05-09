@@ -1,3 +1,4 @@
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 import { type AuthEnv, getCurrentUserId } from "~/server/middleware/require-auth.ts";
@@ -21,45 +22,36 @@ const PositionSchema = z.object({
 	y: z.number().finite(),
 });
 
-export const scrapsRoute = new Hono<AuthEnv>();
-
-scrapsRoute.get("/", async (c) => {
-	const userId = getCurrentUserId(c);
-	const parsed = PageQuerySchema.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
-	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-	const { cursor, limit } = parsed.data;
-	const page = await listScrapsPage(userId, { cursor: decodeCursor(cursor), limit });
-	return c.json(page);
-});
-
-scrapsRoute.get("/:id", async (c) => {
-	const userId = getCurrentUserId(c);
-	const scrap = await findScrapById(userId, c.req.param("id"));
-	if (!scrap) return c.json({ error: "not_found" }, 404);
-	return c.json(scrap);
-});
-
-scrapsRoute.post("/", async (c) => {
-	const userId = getCurrentUserId(c);
-	const body = await c.req.json();
-	const parsed = CreateScrapSchema.safeParse(body);
-	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-	const scrap = await createScrap(userId, {
-		kind: parsed.data.kind,
-		body: parsed.data.body,
-		source: "manual",
-		peopleIds: parsed.data.peopleIds,
+export const scrapsRoute = new Hono<AuthEnv>()
+	.get("/", zValidator("query", PageQuerySchema), async (c) => {
+		const userId = getCurrentUserId(c);
+		const { cursor, limit } = c.req.valid("query");
+		const page = await listScrapsPage(userId, { cursor: decodeCursor(cursor), limit });
+		return c.json(page);
+	})
+	.get("/:id", async (c) => {
+		const userId = getCurrentUserId(c);
+		const scrap = await findScrapById(userId, c.req.param("id"));
+		if (!scrap) return c.json({ error: "not_found" as const }, 404);
+		return c.json(scrap);
+	})
+	.post("/", zValidator("json", CreateScrapSchema), async (c) => {
+		const userId = getCurrentUserId(c);
+		const data = c.req.valid("json");
+		const scrap = await createScrap(userId, {
+			kind: data.kind,
+			body: data.body,
+			source: "manual",
+			peopleIds: data.peopleIds,
+		});
+		return c.json(scrap, 201);
+	})
+	.patch("/:id/position", zValidator("json", PositionSchema), async (c) => {
+		const userId = getCurrentUserId(c);
+		const id = c.req.param("id");
+		const { x, y } = c.req.valid("json");
+		const existing = await findScrapById(userId, id);
+		if (!existing) return c.json({ error: "not_found" as const }, 404);
+		await updateScrapPosition(userId, id, x, y);
+		return c.json({ ok: true as const });
 	});
-	return c.json(scrap, 201);
-});
-
-scrapsRoute.patch("/:id/position", async (c) => {
-	const userId = getCurrentUserId(c);
-	const id = c.req.param("id");
-	const parsed = PositionSchema.safeParse(await c.req.json());
-	if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-	const existing = await findScrapById(userId, id);
-	if (!existing) return c.json({ error: "not_found" }, 404);
-	await updateScrapPosition(userId, id, parsed.data.x, parsed.data.y);
-	return c.json({ ok: true });
-});

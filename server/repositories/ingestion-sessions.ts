@@ -11,8 +11,8 @@ interface SessionRow {
 	state: IngestionState;
 	pendingScrapIds: string[];
 	pendingPersonIds: string[];
-	createdAt: Date;
-	updatedAt: Date;
+	createdAt: string;
+	updatedAt: string;
 }
 
 function strip(row: SessionRow): IngestionSession {
@@ -38,7 +38,7 @@ export async function findActiveSession(
 		.where("chatId", "=", chatId)
 		.executeTakeFirst();
 	if (!row) return undefined;
-	if (Date.now() - row.updatedAt.getTime() > SESSION_TIMEOUT_MS) {
+	if (Date.now() - Date.parse(row.updatedAt) > SESSION_TIMEOUT_MS) {
 		await deleteSession(row.id);
 		return undefined;
 	}

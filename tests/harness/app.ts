@@ -1,12 +1,11 @@
-import type { Hono } from "hono";
 import { createApp } from "~/server/create-app.ts";
 import { AUTH_COOKIE } from "~/server/middleware/require-auth.ts";
 import { signSessionToken } from "~/server/utils/auth.ts";
 import { TEST_USER_ID } from "~/tests/harness/db.ts";
 
-let _app: Hono | undefined;
+let _app: ReturnType<typeof createApp> | undefined;
 
-function getApp(): Hono {
+function getApp(): ReturnType<typeof createApp> {
 	if (!_app) _app = createApp();
 	return _app;
 }

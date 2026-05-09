@@ -13,8 +13,8 @@ interface PersonRow {
 	userId: string;
 	name: string;
 	featuredScrapId: string | null;
-	lastContactedAt: Date | null;
-	createdAt: Date;
+	lastContactedAt: string | null;
+	createdAt: string;
 	x: number | null;
 	y: number | null;
 }

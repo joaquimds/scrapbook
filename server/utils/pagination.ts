@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const CursorSchema = z.object({
-	createdAt: z.coerce.date(),
+	createdAt: z.iso.datetime(),
 	id: z.string(),
 });
 export type Cursor = z.infer<typeof CursorSchema>;
