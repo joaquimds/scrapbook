@@ -1,7 +1,6 @@
 import {
 	forceCollide,
 	forceLink,
-	forceManyBody,
 	forceSimulation,
 	type Simulation,
 	type SimulationLinkDatum,
@@ -139,7 +138,6 @@ export function startForceSimulation(opts: ForceSimulationOpts): void {
 							return collideRadius(s) + collideRadius(t) + 30;
 						}),
 				)
-				.force("charge", forceManyBody().strength(-200).distanceMax(400))
 				.force(
 					"collide",
 					forceCollide<SimNode>().radius((d) => collideRadius(d.id)),
