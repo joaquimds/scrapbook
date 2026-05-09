@@ -1,3 +1,4 @@
+import { sendSetupLink } from "~/server/app/setup-link.ts";
 import { env } from "~/server/env.ts";
 import {
 	advanceRegistration,
@@ -53,10 +54,8 @@ export async function handleTelegramRegistration(chatId: string, text: string): 
 		const user = await createUser({ username: candidate, telegramChatId: chatId });
 		await deleteRegistration(chatId);
 		logger.info({ userId: user.id, username: candidate, chatId }, "user registered via Telegram");
-		await sendTelegramMessage(
-			chatId,
-			`You're in, ${candidate}. Visit the web app and sign in with your username — I'll text you a code so you can set a password.`,
-		);
+		await sendTelegramMessage(chatId, `You're in, ${candidate}!`);
+		await sendSetupLink(user.id, chatId);
 		return true;
 	}
 

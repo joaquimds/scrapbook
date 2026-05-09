@@ -36,14 +36,6 @@ export async function checkAuth(): Promise<void> {
 	}
 }
 
-// Step 1 of the two-step login: returns whether the username has a password
-// already set. If not, the server has just sent a setup OTP via the bot.
-export async function lookupUsername(username: string): Promise<{ passwordSet: boolean } | null> {
-	const res = await api.api.auth.lookup.$post({ json: { username } });
-	if (!res.ok) return null;
-	return await res.json();
-}
-
 export async function login(username: string, password: string): Promise<boolean> {
 	const res = await api.api.auth.login.$post({ json: { username, password } });
 	if (!res.ok) return false;
@@ -54,21 +46,23 @@ export async function login(username: string, password: string): Promise<boolean
 	return true;
 }
 
-// Wipes any existing password and sends a fresh OTP. Returns true if the
-// request was accepted (always true, server doesn't reveal existence).
-export async function requestForgotCode(username: string): Promise<boolean> {
+// Asks the server to issue a setup token and DM a setup link via Telegram.
+// Always resolves true (the endpoint is silent on unknown users).
+export async function requestSetupLink(username: string): Promise<boolean> {
 	const res = await api.api.auth.forgot.$post({ json: { username } });
 	return res.ok;
 }
 
-export async function setupPassword(
-	username: string,
-	code: string,
-	newPassword: string,
-): Promise<boolean> {
-	const res = await api.api.auth.setup.$post({
-		json: { username, code, newPassword },
-	});
+export async function validateSetupToken(token: string): Promise<{ username: string } | null> {
+	const res = await api.api.auth["setup-token"][":token"].$get({ param: { token } });
+	if (!res.ok) return null;
+	const body = await res.json();
+	if (!("username" in body)) return null;
+	return { username: body.username };
+}
+
+export async function completeSetup(token: string, password: string): Promise<boolean> {
+	const res = await api.api.auth.setup.$post({ json: { token, password } });
 	if (!res.ok) return false;
 	const body = await res.json();
 	if (!("user" in body)) return false;

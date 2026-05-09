@@ -3,11 +3,11 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
+import { sendSetupLink } from "~/server/app/setup-link.ts";
 import { env } from "~/server/env.ts";
 import { AUTH_COOKIE } from "~/server/middleware/require-auth.ts";
-import { issueResetCode, verifyResetCode } from "~/server/repositories/password-reset-codes.ts";
+import { consumeSetupToken, findSetupToken } from "~/server/repositories/setup-tokens.ts";
 import { findUserById, findUserByUsername, setUserPassword } from "~/server/repositories/users.ts";
-import { sendTelegramMessage } from "~/server/services/telegram.ts";
 import { signSessionToken, verifyPassword, verifySessionToken } from "~/server/utils/auth.ts";
 import { logger } from "~/server/utils/logger.ts";
 
@@ -17,10 +17,10 @@ const MIN_PASSWORD_LEN = 8;
 const UsernameSchema = z.object({ username: z.string().min(1) });
 const LoginSchema = z.object({ username: z.string().min(1), password: z.string().min(1) });
 const SetupSchema = z.object({
-	username: z.string().min(1),
-	code: z.string().min(1),
-	newPassword: z.string().min(MIN_PASSWORD_LEN),
+	token: z.string().min(1),
+	password: z.string().min(MIN_PASSWORD_LEN),
 });
+const TokenParamSchema = z.object({ token: z.string().min(1) });
 
 function setSessionCookie(c: Context, userId: string): void {
 	setCookie(c, AUTH_COOKIE, signSessionToken(userId), {
@@ -32,57 +32,44 @@ function setSessionCookie(c: Context, userId: string): void {
 	});
 }
 
-async function issueAndSend(userId: string, chatId: string): Promise<void> {
-	const code = await issueResetCode(userId);
-	await sendTelegramMessage(chatId, `Your Scrapbook code is ${code}. It expires in 10 minutes.`);
-}
-
 export const authRoute = new Hono()
-	// Step 1 of the two-step login form. Tells the client whether the user has a
-	// password set yet; if not, kicks off the OTP flow by sending a code via the
-	// bot. Always returns 200 and never reveals whether the username exists.
-	.post("/lookup", zValidator("json", UsernameSchema), async (c) => {
-		const { username } = c.req.valid("json");
-		const user = await findUserByUsername(username);
-		if (!user) {
-			return c.json({ passwordSet: false });
-		}
-		if (user.passwordHash) {
-			return c.json({ passwordSet: true });
-		}
-		await issueAndSend(user.id, user.telegramChatId);
-		return c.json({ passwordSet: false });
-	})
 	.post("/login", zValidator("json", LoginSchema), async (c) => {
 		const { username, password } = c.req.valid("json");
 		const user = await findUserByUsername(username);
 		if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
-			return c.json({ error: "unauthorized" as const }, 401);
+			return c.json({ error: "invalid_credentials" as const }, 401);
 		}
 		setSessionCookie(c, user.id);
 		return c.json({ user: { id: user.id, username: user.username } });
 	})
-	// Issues a reset code but does NOT clear the existing password — that only
-	// happens once /setup successfully consumes the code, otherwise anyone who
-	// knows a username could lock that user out by spamming this endpoint. Always
-	// returns 200 to avoid leaking whether the username exists.
+	// Issues a setup token and DMs a link via Telegram. Doesn't touch the
+	// existing password; that only changes once /setup consumes the token.
+	// Always 200 so callers can't enumerate usernames.
 	.post("/forgot", zValidator("json", UsernameSchema), async (c) => {
 		const { username } = c.req.valid("json");
 		const user = await findUserByUsername(username);
 		if (user) {
-			await issueAndSend(user.id, user.telegramChatId);
+			await sendSetupLink(user.id, user.telegramChatId);
 		} else {
 			logger.info({ username }, "/forgot for unknown username — silent");
 		}
 		return c.json({ ok: true as const });
 	})
+	.get("/setup-token/:token", zValidator("param", TokenParamSchema), async (c) => {
+		const { token } = c.req.valid("param");
+		const found = await findSetupToken(token);
+		if (!found) return c.json({ error: "invalid_token" as const }, 401);
+		const user = await findUserById(found.userId);
+		if (!user) return c.json({ error: "invalid_token" as const }, 401);
+		return c.json({ ok: true as const, username: user.username });
+	})
 	.post("/setup", zValidator("json", SetupSchema), async (c) => {
-		const { username, code, newPassword } = c.req.valid("json");
-		const user = await findUserByUsername(username);
-		if (!user) return c.json({ error: "invalid_code" as const }, 401);
-		const ok = await verifyResetCode(user.id, code);
-		if (!ok) return c.json({ error: "invalid_code" as const }, 401);
-		await setUserPassword(user.id, newPassword);
+		const { token, password } = c.req.valid("json");
+		const found = await consumeSetupToken(token);
+		if (!found) return c.json({ error: "invalid_token" as const }, 401);
+		const user = await findUserById(found.userId);
+		if (!user) return c.json({ error: "invalid_token" as const }, 401);
+		await setUserPassword(user.id, password);
 		setSessionCookie(c, user.id);
 		return c.json({ user: { id: user.id, username: user.username } });
 	})

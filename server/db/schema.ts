@@ -17,11 +17,10 @@ export type UsersTable = Omit<User, "createdAt"> & {
 	createdAt: GeneratedAlways<string>;
 };
 
-export interface PasswordResetCodesTable {
+export interface SetupTokensTable {
+	tokenHash: string;
 	userId: string;
-	codeHash: string;
 	expiresAt: string;
-	attempts: number;
 	createdAt: GeneratedAlways<string>;
 }
 
@@ -69,7 +68,7 @@ export interface RemindersSentTable {
 
 export interface Database {
 	users: UsersTable;
-	passwordResetCodes: PasswordResetCodesTable;
+	setupTokens: SetupTokensTable;
 	telegramRegistrations: TelegramRegistrationsTable;
 	scraps: ScrapsTable;
 	people: PeopleTable;
