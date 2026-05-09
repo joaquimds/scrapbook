@@ -1,4 +1,5 @@
 import {
+	forceCollide,
 	forceLink,
 	forceManyBody,
 	forceSimulation,
@@ -9,13 +10,11 @@ import {
 import { createEffect, onCleanup } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { deleteNodeSize, getNodeSize } from "~/client/src/app/node-sizes.ts";
-import { graphEdges, graphNodes } from "~/client/src/stores/graph.ts";
-import { peopleStore } from "~/client/src/stores/people.ts";
-import { scrapsStore } from "~/client/src/stores/scraps.ts";
+import type { GraphEdge, GraphNode } from "~/client/src/stores/graph.ts";
 
 export interface SimNode extends SimulationNodeDatum {
 	id: string;
-	nodeKind: "scrap" | "person";
+	nodeKind: string;
 }
 type SimEdge = SimulationLinkDatum<SimNode>;
 
@@ -50,92 +49,24 @@ export function getSimNode(id: string): SimNode | undefined {
 }
 
 const RECT_FALLBACK = { w: 40, h: 40 };
-const RECT_PAD = 24;
+const COLLIDE_PAD = 8;
 
-// Like forceCenter, but targets the centroid of the *fixed* nodes instead of
-// a hard-coded world point. A vanilla forceCenter targeting (W/2, H/2) drives
-// the steady state to `mean_all = target`, which means with many fixed nodes
-// clustered far from world-centre, the few unfixed nodes are pushed to the
-// opposite side just to balance the mean. Anchoring the target on the fixed
-// cluster makes the equilibrium for unfixed nodes the cluster itself.
-function clusterCenter() {
-	let nodes: SimNode[] = [];
-	const force = () => {
-		if (nodes.length === 0) return;
-		let fx = 0;
-		let fy = 0;
-		let nf = 0;
-		for (const node of nodes) {
-			if (node.fx != null && node.fy != null) {
-				fx += node.fx;
-				fy += node.fy;
-				nf += 1;
-			}
-		}
-		const tx = nf > 0 ? fx / nf : window.innerWidth / 2;
-		const ty = nf > 0 ? fy / nf : window.innerHeight / 2;
-		let mx = 0;
-		let my = 0;
-		for (const node of nodes) {
-			mx += node.x ?? 0;
-			my += node.y ?? 0;
-		}
-		mx = mx / nodes.length - tx;
-		my = my / nodes.length - ty;
-		for (const node of nodes) {
-			node.x = (node.x ?? 0) - mx;
-			node.y = (node.y ?? 0) - my;
-		}
-	};
-	force.initialize = (n: SimNode[]) => {
-		nodes = n;
-	};
-	return force;
+// Bounding-circle radius around each node, used by forceCollide. Sized from
+// the DOM-measured rectangle so wider nodes get a wider keep-out zone.
+function collideRadius(id: string): number {
+	const s = getNodeSize(id) ?? RECT_FALLBACK;
+	return Math.max(s.w, s.h) / 2 + COLLIDE_PAD;
 }
 
-// Custom collision force: treats each node as a padded axis-aligned rectangle
-// using sizes measured from the DOM (see node-sizes.ts). On each tick it
-// resolves any overlapping pair along the axis of smaller penetration.
-function rectCollide() {
-	let nodes: SimNode[] = [];
-	const force = () => {
-		for (let i = 0; i < nodes.length; i++) {
-			const a = nodes[i];
-			if (!a) continue;
-			const sa = getNodeSize(a.id) ?? RECT_FALLBACK;
-			for (let j = i + 1; j < nodes.length; j++) {
-				const b = nodes[j];
-				if (!b) continue;
-				const sb = getNodeSize(b.id) ?? RECT_FALLBACK;
-				const dx = (b.x ?? 0) - (a.x ?? 0);
-				const dy = (b.y ?? 0) - (a.y ?? 0);
-				const minDx = (sa.w + sb.w) / 2 + RECT_PAD;
-				const minDy = (sa.h + sb.h) / 2 + RECT_PAD;
-				const overlapX = minDx - Math.abs(dx);
-				const overlapY = minDy - Math.abs(dy);
-				if (overlapX <= 0 || overlapY <= 0) continue;
-				if (overlapX < overlapY) {
-					const sign = dx < 0 ? -1 : 1;
-					a.x = (a.x ?? 0) - (sign * overlapX) / 2;
-					b.x = (b.x ?? 0) + (sign * overlapX) / 2;
-				} else {
-					const sign = dy < 0 ? -1 : 1;
-					a.y = (a.y ?? 0) - (sign * overlapY) / 2;
-					b.y = (b.y ?? 0) + (sign * overlapY) / 2;
-				}
-			}
-		}
-	};
-	force.initialize = (n: SimNode[]) => {
-		nodes = n;
-	};
-	return force;
+export interface ForceSimulationOpts {
+	nodes: () => GraphNode[];
+	edges: () => GraphEdge[];
 }
 
-export function startForceSimulation(): void {
+export function startForceSimulation(opts: ForceSimulationOpts): void {
 	createEffect(() => {
-		const nodes = graphNodes();
-		const edges = graphEdges();
+		const nodes = opts.nodes();
+		const edges = opts.edges();
 
 		// Reuse SimNode instances across renders so x/y/vx/vy carry over and
 		// the layout doesn't snap on every data update.
@@ -143,16 +74,15 @@ export function startForceSimulation(): void {
 		const newUnfixed: SimNode[] = [];
 		for (const n of nodes) {
 			let sn = simNodes.get(n.id);
-			const persisted = n.nodeKind === "scrap" ? scrapsStore.byId[n.id] : peopleStore.byId[n.id];
 			if (!sn) {
-				if (persisted && persisted.x !== null && persisted.y !== null) {
+				if (n.x !== null && n.y !== null) {
 					sn = {
 						id: n.id,
 						nodeKind: n.nodeKind,
-						x: persisted.x,
-						y: persisted.y,
-						fx: persisted.x,
-						fy: persisted.y,
+						x: n.x,
+						y: n.y,
+						fx: n.x,
+						fy: n.y,
 					};
 					simNodes.set(n.id, sn);
 				} else {
@@ -203,11 +133,17 @@ export function startForceSimulation(): void {
 					"link",
 					forceLink<SimNode, SimEdge>(nextEdges)
 						.id((d) => d.id)
-						.distance(80),
+						.distance((l) => {
+							const s = typeof l.source === "object" ? (l.source as SimNode).id : String(l.source);
+							const t = typeof l.target === "object" ? (l.target as SimNode).id : String(l.target);
+							return collideRadius(s) + collideRadius(t) + 30;
+						}),
 				)
 				.force("charge", forceManyBody().strength(-200).distanceMax(400))
-				.force("collide", rectCollide())
-				.force("center", clusterCenter())
+				.force(
+					"collide",
+					forceCollide<SimNode>().radius((d) => collideRadius(d.id)),
+				)
 				.on("tick", flushPositions);
 		} else {
 			simulation.nodes(nextNodes);

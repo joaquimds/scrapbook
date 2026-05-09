@@ -2,11 +2,11 @@ import { createMemo, createRoot } from "solid-js";
 import { peopleStore } from "~/client/src/stores/people.ts";
 import { scrapsStore } from "~/client/src/stores/scraps.ts";
 
-export type GraphNodeKind = "scrap" | "person";
-
 export interface GraphNode {
 	id: string;
-	nodeKind: GraphNodeKind;
+	nodeKind: string;
+	x: number | null;
+	y: number | null;
 }
 
 export interface GraphEdge {
@@ -34,11 +34,19 @@ export const { graphNodes, graphEdges } = createRoot(() => {
 
 	const graphNodes = createMemo<GraphNode[]>(() => {
 		const featured = featuredScrapIds();
-		const scrapNodes = scrapsStore.ids
-			.filter((id) => !featured.has(id))
-			.map((id): GraphNode => ({ id, nodeKind: "scrap" }));
-		const personNodes = peopleStore.ids.map((id): GraphNode => ({ id, nodeKind: "person" }));
-		return [...scrapNodes, ...personNodes];
+		const out: GraphNode[] = [];
+		for (const id of scrapsStore.ids) {
+			if (featured.has(id)) continue;
+			const s = scrapsStore.byId[id];
+			if (!s) continue;
+			out.push({ id, nodeKind: "scrap", x: s.x, y: s.y });
+		}
+		for (const id of peopleStore.ids) {
+			const p = peopleStore.byId[id];
+			if (!p) continue;
+			out.push({ id, nodeKind: "person", x: p.x, y: p.y });
+		}
+		return out;
 	});
 
 	const graphEdges = createMemo<GraphEdge[]>(() => {

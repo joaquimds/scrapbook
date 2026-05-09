@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import { api } from "~/client/src/api/services.ts";
+import { setViewportStore } from "~/client/src/stores/viewport.ts";
 
 export type AuthStatus = "loading" | "authed" | "unauthed";
 
@@ -43,6 +44,7 @@ export async function login(username: string, password: string): Promise<boolean
 	if (!("user" in body)) return false;
 	setUser(body.user);
 	setStatus("authed");
+	setViewportStore({ scale: 1, tx: 0, ty: 0, userInteracted: false });
 	return true;
 }
 
@@ -68,10 +70,18 @@ export async function completeSetup(token: string, password: string): Promise<bo
 	if (!("user" in body)) return false;
 	setUser(body.user);
 	setStatus("authed");
+	setViewportStore({ scale: 1, tx: 0, ty: 0, userInteracted: false });
 	return true;
 }
 
 export function setUnauthed(): void {
-	setUser(null);
-	setStatus("unauthed");
+	window.location.href = "/";
+}
+
+export async function logout(): Promise<void> {
+	try {
+		await api.api.auth.logout.$post();
+	} finally {
+		setUnauthed();
+	}
 }

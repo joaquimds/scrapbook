@@ -12,7 +12,7 @@ import pg from "pg";
 process.env.NODE_ENV = "test";
 process.env.ALBUM_DEBOUNCE_MS = "50";
 
-const baseUrl = process.env.TEST_DATABASE_URL ?? "postgres://localhost:5432/scrapbook_test";
+const baseUrl = process.env.TEST_DATABASE_URL ?? "postgres://localhost:5432/scrapboard_test";
 const baseName = new URL(baseUrl).pathname.slice(1);
 const templateName = `${baseName}_template`;
 const workerId = process.env.VITEST_POOL_ID ?? "0";
@@ -39,7 +39,7 @@ await client.end();
 process.env.DATABASE_URL = urlWithDb(workerDbName);
 
 // Fresh temp dir per worker process — each fork gets its own storage root.
-const storageRoot = mkdtempSync(join(tmpdir(), "scrapbook-test-"));
+const storageRoot = mkdtempSync(join(tmpdir(), "scrapboard-test-"));
 process.env.STORAGE_ROOT = storageRoot;
 
 process.env.TELEGRAM_BOT_TOKEN ??= "test-bot-token";

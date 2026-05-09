@@ -3,7 +3,7 @@ import { env } from "~/server/env.ts";
 
 const SCRYPT_KEYLEN = 64;
 const SCRYPT_SALT_BYTES = 16;
-const TOKEN_PURPOSE = "scrapbook-session-v1";
+const TOKEN_PURPOSE = "scrapboard-session-v1";
 
 export function hashPassword(plain: string): string {
 	const salt = randomBytes(SCRYPT_SALT_BYTES);

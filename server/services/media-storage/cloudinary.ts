@@ -28,7 +28,7 @@ export async function saveOriginal(opts: {
 		const stream = cloudinary.uploader.upload_stream(
 			{
 				public_id: opts.id,
-				folder: `scrapbook/${yyyy}/${mm}`,
+				folder: `scrapboard/${yyyy}/${mm}`,
 				resource_type: "image",
 			},
 			(err, res) => {
@@ -42,8 +42,8 @@ export async function saveOriginal(opts: {
 }
 
 // Extracts the Cloudinary public_id from a delivery URL produced by saveOriginal,
-// e.g. https://res.cloudinary.com/<cloud>/image/upload/v123/scrapbook/2026/05/abc.jpg
-// → "scrapbook/2026/05/abc".
+// e.g. https://res.cloudinary.com/<cloud>/image/upload/v123/scrapboard/2026/05/abc.jpg
+// → "scrapboard/2026/05/abc".
 function publicIdFromUrl(mediaUrl: string): string | null {
 	const match = mediaUrl.match(/\/image\/upload\/(?:v\d+\/)?(.+)$/);
 	if (!match?.[1]) return null;

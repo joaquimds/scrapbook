@@ -15,7 +15,7 @@ serve(
 		fetch: app.fetch,
 	},
 	async (info) => {
-		logger.info({ host: env.HOST, port: info.port }, "scrapbook server listening");
+		logger.info({ host: env.HOST, port: info.port }, "scrapboard server listening");
 		await startPublicTunnel(info.port);
 		try {
 			await setTelegramWebhook(`${getPublicBaseUrl()}/api/webhooks/telegram`);

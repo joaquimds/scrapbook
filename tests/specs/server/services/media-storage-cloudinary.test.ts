@@ -42,7 +42,7 @@ describe("cloudinary driver", () => {
 		const opts = uploadStream.mock.calls[0]?.[0];
 		expect(opts).toMatchObject({
 			public_id: "abc",
-			folder: "scrapbook/2024/05",
+			folder: "scrapboard/2024/05",
 			resource_type: "image",
 		});
 	});
@@ -52,11 +52,11 @@ describe("cloudinary driver", () => {
 
 		const { deleteOriginal } = await import("~/server/services/media-storage/cloudinary.ts");
 		await deleteOriginal(
-			"https://res.cloudinary.com/demo/image/upload/v1777719285/scrapbook/2026/05/abc.jpg",
+			"https://res.cloudinary.com/demo/image/upload/v1777719285/scrapboard/2026/05/abc.jpg",
 		);
 
 		expect(destroy).toHaveBeenCalledTimes(1);
-		expect(destroy).toHaveBeenCalledWith("scrapbook/2026/05/abc", {
+		expect(destroy).toHaveBeenCalledWith("scrapboard/2026/05/abc", {
 			resource_type: "image",
 			invalidate: true,
 		});
@@ -66,10 +66,10 @@ describe("cloudinary driver", () => {
 		destroy.mockResolvedValue({ result: "ok" });
 
 		const { deleteOriginal } = await import("~/server/services/media-storage/cloudinary.ts");
-		await deleteOriginal("https://res.cloudinary.com/demo/image/upload/scrapbook/2026/05/abc.jpg");
+		await deleteOriginal("https://res.cloudinary.com/demo/image/upload/scrapboard/2026/05/abc.jpg");
 
 		expect(destroy).toHaveBeenCalledWith(
-			"scrapbook/2026/05/abc",
+			"scrapboard/2026/05/abc",
 			expect.objectContaining({ resource_type: "image" }),
 		);
 	});

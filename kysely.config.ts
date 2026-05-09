@@ -8,7 +8,7 @@ import pg from "pg";
 // `db` instance from `~/server/db/connection.ts`. Migrations only run DDL,
 // so the app's CamelCasePlugin and JSONPlugin are not needed here.
 
-const connectionString = process.env.DATABASE_URL ?? "postgres://localhost:5432/scrapbook";
+const connectionString = process.env.DATABASE_URL ?? "postgres://localhost:5432/scrapboard";
 
 export default defineConfig({
 	kysely: new Kysely({

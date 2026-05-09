@@ -21,7 +21,7 @@ export async function handleTelegramRegistration(chatId: string, text: string): 
 
 	if (!existing) {
 		await startRegistration(chatId);
-		await sendTelegramMessage(chatId, "Welcome to Scrapbook. Send the invite code to get started.");
+		await sendTelegramMessage(chatId, "Welcome to Scrapboard. Send the invite code to get started.");
 		return false;
 	}
 

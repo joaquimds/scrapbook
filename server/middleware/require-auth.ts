@@ -4,7 +4,7 @@ import { findUserById } from "~/server/repositories/users.ts";
 import { verifySessionToken } from "~/server/utils/auth.ts";
 import type { User } from "~/shared/models/User.ts";
 
-export const AUTH_COOKIE = "scrapbook_auth";
+export const AUTH_COOKIE = "scrapboard_auth";
 
 interface AuthVariables {
 	userId: string;

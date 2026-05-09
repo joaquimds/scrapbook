@@ -27,8 +27,8 @@ function parseArgs(): Args {
 	const out: Args = {
 		connectivity: "dense",
 		fixed: "majority",
-		people: 30,
-		scraps: 200,
+		people: 10,
+		scraps: 20,
 		username: "seed",
 	};
 	for (let i = 0; i < argv.length; i++) {

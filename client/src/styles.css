@@ -61,24 +61,97 @@ body,
 }
 
 .scrap-node,
-.person-node {
+.person-node,
+.marketing-node {
 	cursor: grab;
 }
 
 .scrap-node:active,
-.person-node:active {
+.person-node:active,
+.marketing-node:active {
 	cursor: grabbing;
 }
 
-/* On a person node with a photo, the label sits below the photo without
-   affecting the wrapper's bounding box — so collision + edge clipping
-   measure only the photo. */
+.marketing-node {
+	width: max-content;
+	max-width: 700px;
+	padding: 30px 50px;
+	background: #fffbe6;
+	border: 5px solid #1f2a44;
+	color: #1f2a44;
+	text-align: center;
+	word-break: break-word;
+	white-space: normal;
+}
+
+.marketing-node--brand {
+	font-size: 140px;
+	padding: 50px 100px;
+	max-width: none;
+	letter-spacing: 0.02em;
+}
+
+.marketing-node--feature {
+	font-size: 60px;
+}
+
+.marketing-node--login {
+	cursor: pointer;
+	font-size: 70px;
+	padding: 40px 80px;
+	background: #3aa9c9;
+	color: #fffbe6;
+	border-color: #1f6e83;
+	box-shadow: 0 0 0 0 rgba(58, 169, 201, 0.6);
+	animation: marketing-login-pulse 1.8s ease-out infinite;
+}
+
+.marketing-node--login:active {
+	cursor: grabbing;
+	animation: none;
+}
+
+@keyframes marketing-login-pulse {
+	0% {
+		box-shadow: 0 0 0 0 rgba(58, 169, 201, 0.6);
+	}
+	70% {
+		box-shadow: 0 0 0 60px rgba(58, 169, 201, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(58, 169, 201, 0);
+	}
+}
+
+.marketing-node--register {
+	cursor: pointer;
+	font-size: 70px;
+	padding: 40px 80px;
+	background: #c0392b;
+	color: #fffbe6;
+	border-color: #7d1f15;
+	box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.6);
+	animation: marketing-register-pulse 1.8s ease-out infinite;
+}
+
+.marketing-node--register:active {
+	cursor: grabbing;
+	animation: none;
+}
+
+@keyframes marketing-register-pulse {
+	0% {
+		box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.6);
+	}
+	70% {
+		box-shadow: 0 0 0 60px rgba(192, 57, 43, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(192, 57, 43, 0);
+	}
+}
+
 .person-node .node-label {
-	position: absolute;
-	top: 100%;
-	left: 50%;
-	transform: translateX(-50%);
-	margin-top: 20px;
 	white-space: nowrap;
 }
 
@@ -169,6 +242,20 @@ body,
 	border: 1px solid #1f2a44;
 	background: #1f2a44;
 	color: #fffbe6;
+	border-radius: 2px;
+	cursor: pointer;
+}
+
+.logout-button {
+	position: fixed;
+	top: 12px;
+	right: 12px;
+	z-index: 10;
+	font: inherit;
+	padding: 8px 10px;
+	border: 1px solid #1f2a44;
+	background: #fffbe6;
+	color: #1f2a44;
 	border-radius: 2px;
 	cursor: pointer;
 }

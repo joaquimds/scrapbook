@@ -25,6 +25,7 @@ export interface DragHandlers {
 export function createNodeDragHandlers(
 	id: () => string,
 	persist: (id: string, x: number, y: number) => Promise<void>,
+	onClick?: () => void,
 ): DragHandlers {
 	let drag: {
 		pointerId: number;
@@ -109,7 +110,10 @@ export function createNodeDragHandlers(
 		activeCancels.delete(drag.cancel);
 		drag = null;
 		stopEdgePan();
-		if (!moved) return;
+		if (!moved) {
+			onClick?.();
+			return;
+		}
 		getSimulation()?.alphaTarget(0);
 		const sn = getSimNode(id());
 		if (!sn || sn.fx == null || sn.fy == null) return;

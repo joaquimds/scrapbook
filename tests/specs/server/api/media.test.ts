@@ -6,7 +6,7 @@ import { req } from "~/tests/harness/app.ts";
 import { TEST_USER_ID } from "~/tests/harness/db.ts";
 
 function storageRoot(): string {
-	return process.env.STORAGE_ROOT ?? "/tmp/scrapbook-test";
+	return process.env.STORAGE_ROOT ?? "/tmp/scrapboard-test";
 }
 
 async function writeMediaFile(id: string, ext: string, body: string): Promise<string> {

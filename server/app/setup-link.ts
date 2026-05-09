@@ -10,6 +10,6 @@ export async function sendSetupLink(userId: string, chatId: string): Promise<voi
 	const url = `${getPublicBaseUrl()}/setup?token=${token}`;
 	await sendTelegramMessage(
 		chatId,
-		`Set your Scrapbook password here: ${url}\n\nLink expires in 30 minutes.`,
+		`Set your Scrapboard password here: ${url}\n\nLink expires in 30 minutes.`,
 	);
 }

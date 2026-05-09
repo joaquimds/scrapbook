@@ -5,7 +5,7 @@ const EnvSchema = z
 		NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 		HOST: z.string().default("127.0.0.1"),
 		PORT: z.coerce.number().int().positive().default(3000),
-		DATABASE_URL: z.string().url().default("postgres://localhost:5432/scrapbook"),
+		DATABASE_URL: z.url().default("postgres://localhost:5432/scrapboard"),
 		STORAGE_ROOT: z.string().default("./storage"),
 		MEDIA_DRIVER: z.enum(["local", "cloudinary"]).default("local"),
 		CLOUDINARY_URL: z.string().optional(),

@@ -1,18 +1,19 @@
-import { Navigate, Route, Router } from "@solidjs/router";
+import { Route, Router } from "@solidjs/router";
 import { type Component, Match, onMount, Switch } from "solid-js";
-import { Canvas } from "~/client/src/components/Canvas.tsx";
+import { AppCanvas } from "~/client/src/components/AppCanvas.tsx";
 import { ForgotPage } from "~/client/src/pages/ForgotPage.tsx";
 import { LoginPage } from "~/client/src/pages/LoginPage.tsx";
+import { MarketingPage } from "~/client/src/pages/MarketingPage.tsx";
 import { SetupPage } from "~/client/src/pages/SetupPage.tsx";
 import { authStatus, checkAuth } from "~/client/src/stores/auth.ts";
 
 const Home: Component = () => (
 	<Switch>
 		<Match when={authStatus() === "authed"}>
-			<Canvas />
+			<AppCanvas />
 		</Match>
 		<Match when={authStatus() === "unauthed"}>
-			<Navigate href="/login" />
+			<MarketingPage />
 		</Match>
 	</Switch>
 );

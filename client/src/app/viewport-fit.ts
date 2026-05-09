@@ -1,13 +1,12 @@
 import { positionsStore } from "~/client/src/app/force-simulation.ts";
 import { getNodeSize } from "~/client/src/app/node-sizes.ts";
-import { graphNodes } from "~/client/src/stores/graph.ts";
+import type { GraphNode } from "~/client/src/stores/graph.ts";
 import { clampScale, setViewportStore, viewportStore } from "~/client/src/stores/viewport.ts";
 
 const FIT_PADDING = 40;
 const FALLBACK_SIZE = { w: 40, h: 40 };
 
-export function fitToBounds(): void {
-	const nodes = graphNodes();
+export function fitToBounds(nodes: GraphNode[]): void {
 	if (nodes.length === 0) return;
 
 	let minX = Infinity;
@@ -45,7 +44,7 @@ export function fitToBounds(): void {
 	setViewportStore({ scale, tx, ty });
 }
 
-export function maybeAutoFit(): void {
+export function maybeAutoFit(nodes: GraphNode[]): void {
 	if (viewportStore.userInteracted) return;
-	fitToBounds();
+	fitToBounds(nodes);
 }

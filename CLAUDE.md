@@ -1,4 +1,4 @@
-# Scrapbook — agent rules
+# Scrapboard — agent rules
 
 ## Import boundaries
 

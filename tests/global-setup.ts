@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import pg from "pg";
 
-const TEST_DB_URL = process.env.TEST_DATABASE_URL ?? "postgres://localhost:5432/scrapbook_test";
+const TEST_DB_URL = process.env.TEST_DATABASE_URL ?? "postgres://localhost:5432/scrapboard_test";
 
 function maintenanceUrl(): string {
 	const u = new URL(TEST_DB_URL);

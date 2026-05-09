@@ -1,21 +1,25 @@
-import { type Component, For, onCleanup, onMount } from "solid-js";
+import { type Component, For, Match, onCleanup, onMount, Switch } from "solid-js";
 import { setOnTick, startForceSimulation } from "~/client/src/app/force-simulation.ts";
-import { startIncrementalLoad } from "~/client/src/app/incremental-load.ts";
 import { maybeAutoFit } from "~/client/src/app/viewport-fit.ts";
 import { attachViewportInput, onCanvasWheel } from "~/client/src/app/viewport-input.ts";
 import { Edge } from "~/client/src/components/Edge.tsx";
+import { MarketingNode } from "~/client/src/components/MarketingNode.tsx";
 import { PersonNode } from "~/client/src/components/PersonNode.tsx";
 import { ScrapNode } from "~/client/src/components/ScrapNode.tsx";
-import { graphEdges, graphNodes } from "~/client/src/stores/graph.ts";
+import type { GraphEdge, GraphNode } from "~/client/src/stores/graph.ts";
 import { LAYOUT_FACTOR, viewportStore } from "~/client/src/stores/viewport.ts";
 
-export const Canvas: Component = () => {
+interface CanvasProps {
+	nodes: () => GraphNode[];
+	edges: () => GraphEdge[];
+}
+
+export const Canvas: Component<CanvasProps> = (props) => {
 	let rootEl: HTMLDivElement | undefined;
 
 	onMount(() => {
-		startIncrementalLoad();
-		setOnTick(maybeAutoFit);
-		const onResize = () => maybeAutoFit();
+		setOnTick(() => maybeAutoFit(props.nodes()));
+		const onResize = () => maybeAutoFit(props.nodes());
 		window.addEventListener("resize", onResize);
 		const wheelHandler = (e: WheelEvent) => onCanvasWheel(e);
 		rootEl?.addEventListener("wheel", wheelHandler, { passive: false });
@@ -28,7 +32,7 @@ export const Canvas: Component = () => {
 		});
 	});
 
-	startForceSimulation();
+	startForceSimulation({ nodes: props.nodes, edges: props.edges });
 
 	return (
 		<div
@@ -44,12 +48,31 @@ export const Canvas: Component = () => {
 				}}
 			>
 				<div class="node-layer">
-					<For each={graphNodes()}>
-						{(n) => (n.nodeKind === "scrap" ? <ScrapNode id={n.id} /> : <PersonNode id={n.id} />)}
+					<For each={props.nodes()}>
+						{(n) => (
+							<Switch>
+								<Match when={n.nodeKind === "scrap"}>
+									<ScrapNode id={n.id} />
+								</Match>
+								<Match when={n.nodeKind === "person"}>
+									<PersonNode id={n.id} />
+								</Match>
+								<Match
+									when={
+										n.nodeKind === "brand" ||
+										n.nodeKind === "feature" ||
+										n.nodeKind === "login" ||
+										n.nodeKind === "register"
+									}
+								>
+									<MarketingNode node={n} />
+								</Match>
+							</Switch>
+						)}
 					</For>
 				</div>
 				<svg class="edge-layer" width="100%" height="100%" aria-hidden="true">
-					<For each={graphEdges()}>{(e) => <Edge source={e.source} target={e.target} />}</For>
+					<For each={props.edges()}>{(e) => <Edge source={e.source} target={e.target} />}</For>
 				</svg>
 			</div>
 		</div>
