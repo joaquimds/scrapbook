@@ -1,8 +1,9 @@
-import { type Component, createSignal, For, Show } from "solid-js";
+import { type Component, createMemo, createSignal, For, Show } from "solid-js";
 import {
 	createPerson,
 	createScrap,
 	deleteScrap,
+	updatePerson,
 	updateScrap,
 	uploadScrapMedia,
 } from "~/client/src/api/services.ts";
@@ -28,6 +29,16 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 	const [peopleIds, setPeopleIds] = createSignal<string[]>(
 		initial()?.peopleIds ?? props.defaultPeopleIds ?? [],
 	);
+	const initialFeaturedFor = (): string | null => {
+		const sid = props.scrapId;
+		if (!sid) return null;
+		const ids = initial()?.peopleIds ?? [];
+		for (const pid of ids) {
+			if (peopleStore.byId[pid]?.featuredScrapId === sid) return pid;
+		}
+		return null;
+	};
+	const [featuredFor, setFeaturedFor] = createSignal<string | null>(initialFeaturedFor());
 	const [file, setFile] = createSignal<File | null>(null);
 	const [newPersonName, setNewPersonName] = createSignal("");
 	const [busy, setBusy] = createSignal(false);
@@ -35,8 +46,15 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 
 	const isEdit = () => Boolean(props.scrapId);
 
+	const taggedPeople = createMemo(() =>
+		peopleIds()
+			.map((id) => peopleStore.byId[id])
+			.filter((p): p is NonNullable<typeof p> => Boolean(p)),
+	);
+
 	function togglePerson(id: string) {
 		setPeopleIds((curr) => (curr.includes(id) ? curr.filter((p) => p !== id) : [...curr, id]));
+		if (featuredFor() === id && !peopleIds().includes(id)) setFeaturedFor(null);
 	}
 
 	async function onAddPerson() {
@@ -53,6 +71,22 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 			setError(e instanceof Error ? e.message : "Failed to add person");
 		} finally {
 			setBusy(false);
+		}
+	}
+
+	async function applyFeaturedFor(scrapId: string) {
+		const target = featuredFor();
+		const tagged = peopleIds();
+		for (const pid of tagged) {
+			const p = peopleStore.byId[pid];
+			if (!p) continue;
+			if (pid === target && p.featuredScrapId !== scrapId) {
+				const updated = await updatePerson(pid, { featuredScrapId: scrapId });
+				upsertPerson(updated);
+			} else if (pid !== target && p.featuredScrapId === scrapId) {
+				const updated = await updatePerson(pid, { featuredScrapId: null });
+				upsertPerson(updated);
+			}
 		}
 	}
 
@@ -95,6 +129,7 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 				}
 				props.onCreated?.(scrap);
 			}
+			if (scrap) await applyFeaturedFor(scrap.id);
 			props.onClose();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Save failed");
@@ -209,6 +244,24 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 						Add person
 					</button>
 				</div>
+
+				<Show when={taggedPeople().length > 0}>
+					<label class="scrap-form-label" for="scrap-form-featured-for">
+						Featured scrap for
+					</label>
+					<select
+						id="scrap-form-featured-for"
+						class="scrap-form-input"
+						value={featuredFor() ?? ""}
+						onChange={(e) =>
+							setFeaturedFor(e.currentTarget.value === "" ? null : e.currentTarget.value)
+						}
+						disabled={busy()}
+					>
+						<option value="">(No-one)</option>
+						<For each={taggedPeople()}>{(p) => <option value={p.id}>{p.name}</option>}</For>
+					</select>
+				</Show>
 
 				<div class="scrap-form-actions">
 					<Show when={isEdit()}>

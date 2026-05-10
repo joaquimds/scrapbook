@@ -396,6 +396,11 @@ body,
 	background: var(--color-accent-red);
 }
 
+.scrap-form-button--outline {
+	background: transparent;
+	color: var(--color-fg);
+}
+
 .scrap-form-button:disabled {
 	opacity: 0.5;
 	cursor: default;

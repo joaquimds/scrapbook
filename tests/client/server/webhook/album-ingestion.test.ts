@@ -42,7 +42,8 @@ describe("Album (media_group) ingestion", () => {
 		await sleep(PAST_DEBOUNCE);
 
 		const scraps = await db.selectFrom("scraps").selectAll().execute();
-		expect(scraps.some((s) => s.body === "group caption")).toBe(true);
+		expect(scraps.some((s) => s.body === "group caption (1)")).toBe(true);
+		expect(scraps.some((s) => s.body === "group caption (2)")).toBe(true);
 	});
 
 	it("creates a single awaitingImageCaption session for the whole uncaptioned album", async () => {

@@ -114,17 +114,18 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 	}
 
 	if (session.state === "awaitingImageCaption") {
-		const isSkip = text.toLowerCase() === "skip" || text === "";
-		if (!isSkip) {
-			logger.info(
-				{ from: msg.from, scrapIds: session.pendingScrapIds, captionLength: text.length },
-				"saving caption",
-			);
-			for (const scrapId of session.pendingScrapIds) {
-				await updateScrapBody(msg.userId, scrapId, text);
-			}
-		} else {
-			logger.info({ from: msg.from }, "user skipped caption");
+		if (text === "") {
+			await sendTelegramMessage(msg.from, "Please add a caption for this scrap.");
+			return;
+		}
+		logger.info(
+			{ from: msg.from, scrapIds: session.pendingScrapIds, captionLength: text.length },
+			"saving caption",
+		);
+		const multi = session.pendingScrapIds.length > 1;
+		for (const [i, scrapId] of session.pendingScrapIds.entries()) {
+			const body = multi ? `${text} (${i + 1})` : text;
+			await updateScrapBody(msg.userId, scrapId, body);
 		}
 		await upsertSession({
 			userId: msg.userId,
@@ -235,17 +236,19 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 
 	const caption = msg.text.trim() || null;
 	const scrapIds: string[] = [];
+	const multi = msg.media.length > 1;
 
-	for (const m of msg.media) {
+	for (const [i, m] of msg.media.entries()) {
 		try {
 			logger.info({ fileId: m.fileId }, "ingesting media item");
 			const { buffer, ext } = await downloadTelegramFile(m.fileId);
 			const id = newId();
 			const { mediaUrl } = await saveOriginal({ id, buffer, ext });
 			logger.info({ id, mediaUrl, bytes: buffer.length }, "saved original media");
+			const body = caption && multi ? `${caption} (${i + 1})` : caption;
 			const scrap = await createScrap(msg.userId, {
 				id,
-				body: caption,
+				body,
 				mediaUrl,
 				source: "telegram",
 				externalMessageId: m.messageSid,
@@ -283,7 +286,7 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 		state: "awaitingImageCaption",
 		pendingScrapIds: scrapIds,
 	});
-	await sendTelegramMessage(msg.from, `Saved ${noun}. Add a caption, or reply "skip".`);
+	await sendTelegramMessage(msg.from, `Saved ${noun}. Add a caption.`);
 }
 
 const CANCELLABLE_STATES = new Set([

@@ -55,7 +55,7 @@ describe("Single photo ingestion", () => {
 	it("prompts for a caption after saving an uncaptioned photo", async () => {
 		await webhook(photoUpdate());
 		const messages = sentMessages();
-		expect(messages.some((m) => /caption|skip/i.test(m.text))).toBe(true);
+		expect(messages.some((m) => /caption/i.test(m.text))).toBe(true);
 	});
 
 	it("ingests an image sent as a document (Telegram 'send as file')", async () => {

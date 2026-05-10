@@ -21,6 +21,7 @@ export const PersonForm: Component<PersonFormProps> = (props) => {
 		initial()?.featuredScrapId ?? null,
 	);
 	const [creatingNewScrap, setCreatingNewScrap] = createSignal(false);
+	const [editingScrapId, setEditingScrapId] = createSignal<string | null>(null);
 	const [busy, setBusy] = createSignal(false);
 	const [error, setError] = createSignal<string | null>(null);
 
@@ -148,6 +149,16 @@ export const PersonForm: Component<PersonFormProps> = (props) => {
 						>
 							Create new scrap
 						</button>
+						<Show when={featuredScrapId()}>
+							<button
+								type="button"
+								class="scrap-form-button scrap-form-button--outline"
+								onClick={() => setEditingScrapId(featuredScrapId())}
+								disabled={busy()}
+							>
+								Edit featured scrap
+							</button>
+						</Show>
 					</div>
 
 					<div class="scrap-form-actions">
@@ -176,6 +187,9 @@ export const PersonForm: Component<PersonFormProps> = (props) => {
 					onCreated={(s) => setFeaturedScrapId(s.id)}
 					onClose={() => setCreatingNewScrap(false)}
 				/>
+			</Show>
+			<Show when={editingScrapId()}>
+				{(id) => <ScrapForm scrapId={id()} onClose={() => setEditingScrapId(null)} />}
 			</Show>
 		</>
 	);
