@@ -1,5 +1,10 @@
 :root {
 	--color-bg: #f5efe1;
+	--color-fg: #1f2a44;
+	--color-card: #fffbe6;
+	--color-input: #fff;
+	--color-error: #a23;
+	--color-overlay: rgba(31, 42, 68, 0.4);
 }
 
 html,
@@ -251,18 +256,155 @@ body,
 	cursor: pointer;
 }
 
-.logout-button {
+.top-actions {
 	position: fixed;
 	top: 12px;
 	right: 12px;
 	z-index: 10;
+	display: flex;
+	gap: 8px;
+}
+
+.logout-button,
+.add-button {
 	font: inherit;
 	padding: 8px 10px;
-	border: 1px solid #1f2a44;
-	background: #fffbe6;
-	color: #1f2a44;
+	border: 1px solid var(--color-fg);
+	background: var(--color-card);
+	color: var(--color-fg);
 	border-radius: 2px;
 	cursor: pointer;
+}
+
+.add-button {
+	background: var(--color-fg);
+	color: var(--color-card);
+}
+
+.scrap-form-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 20;
+	background: var(--color-overlay);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+	overflow: auto;
+}
+
+.scrap-form {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 20px;
+	background: var(--color-card);
+	border: 1px solid var(--color-fg);
+	border-radius: 4px;
+	min-width: 320px;
+	max-width: 480px;
+	width: 100%;
+	max-height: 90vh;
+	overflow: auto;
+	font-family: monospace;
+	color: var(--color-fg);
+}
+
+.scrap-form-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 14px;
+}
+
+.scrap-form-close {
+	font: inherit;
+	font-size: 18px;
+	line-height: 1;
+	background: none;
+	border: none;
+	color: var(--color-fg);
+	cursor: pointer;
+	padding: 0 4px;
+}
+
+.scrap-form-label {
+	font-size: 12px;
+}
+
+.scrap-form-input {
+	font: inherit;
+	padding: 8px 10px;
+	border: 1px solid var(--color-fg);
+	background: var(--color-input);
+	color: inherit;
+	border-radius: 2px;
+}
+
+.scrap-form-textarea {
+	resize: vertical;
+	min-height: 80px;
+}
+
+.scrap-form-people {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-height: 160px;
+	overflow: auto;
+	border: 1px solid var(--color-fg);
+	background: var(--color-input);
+	padding: 6px 8px;
+	border-radius: 2px;
+	font-size: 13px;
+}
+
+.scrap-form-person {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	cursor: pointer;
+}
+
+.scrap-form-add-person {
+	display: flex;
+	gap: 6px;
+}
+
+.scrap-form-add-person .scrap-form-input {
+	flex: 1;
+}
+
+.scrap-form-button {
+	font: inherit;
+	padding: 8px 10px;
+	border: 1px solid var(--color-fg);
+	background: var(--color-fg);
+	color: var(--color-card);
+	border-radius: 2px;
+	cursor: pointer;
+}
+
+.scrap-form-button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.scrap-form-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.scrap-form-error {
+	font-size: 12px;
+	color: var(--color-error);
+}
+
+.scrap-form-hint {
+	font-size: 11px;
+	opacity: 0.7;
 }
 
 .login-button:disabled {

@@ -17,6 +17,12 @@ const [scrapsStore, setScrapsStore] = createStore<ScrapsState>({
 
 export { scrapsStore };
 
+export function upsertScrap(scrap: Scrap): void {
+	const isNew = !(scrap.id in scrapsStore.byId);
+	setScrapsStore("byId", scrap.id, scrap);
+	if (isNew) setScrapsStore("ids", (ids) => [...ids, scrap.id]);
+}
+
 export function ingestScrapsPage(items: Scrap[], nextCursor: string | null): void {
 	const newById = { ...scrapsStore.byId };
 	const newIds = [...scrapsStore.ids];

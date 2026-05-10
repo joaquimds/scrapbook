@@ -17,6 +17,12 @@ const [peopleStore, setPeopleStore] = createStore<PeopleState>({
 
 export { peopleStore };
 
+export function upsertPerson(person: Person): void {
+	const isNew = !(person.id in peopleStore.byId);
+	setPeopleStore("byId", person.id, person);
+	if (isNew) setPeopleStore("ids", (ids) => [...ids, person.id]);
+}
+
 export function ingestPeoplePage(items: Person[], nextCursor: string | null): void {
 	const newById = { ...peopleStore.byId };
 	const newIds = [...peopleStore.ids];

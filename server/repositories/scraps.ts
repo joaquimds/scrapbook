@@ -89,6 +89,19 @@ export async function updateScrapBody(
 		.execute();
 }
 
+export async function updateScrapMediaUrl(
+	userId: string,
+	scrapId: string,
+	mediaUrl: string | null,
+): Promise<void> {
+	await db
+		.updateTable("scraps")
+		.set({ mediaUrl })
+		.where("id", "=", scrapId)
+		.where("userId", "=", userId)
+		.execute();
+}
+
 export async function updateScrapPosition(
 	userId: string,
 	scrapId: string,
