@@ -1,7 +1,7 @@
 import { db } from "~/server/db/connection.ts";
 import { toClientMediaUrl, toClientThumbnailUrl } from "~/server/utils/media-urls.ts";
 import { type Cursor, encodeCursor } from "~/server/utils/pagination.ts";
-import type { Scrap, ScrapKind, ScrapSource } from "~/shared/models/Scrap.ts";
+import type { Scrap, ScrapSource } from "~/shared/models/Scrap.ts";
 import { newId } from "~/shared/utils/id.ts";
 
 export interface PageOfScraps {
@@ -11,7 +11,6 @@ export interface PageOfScraps {
 
 interface CreateScrapInput {
 	id?: string;
-	kind: ScrapKind;
 	body: string | null;
 	mediaUrl?: string | null;
 	source: ScrapSource;
@@ -22,7 +21,6 @@ interface CreateScrapInput {
 interface ScrapRow {
 	id: string;
 	userId: string;
-	kind: ScrapKind;
 	body: string | null;
 	mediaUrl: string | null;
 	source: ScrapSource;
@@ -42,7 +40,6 @@ export async function createScrap(userId: string, input: CreateScrapInput): Prom
 			.values({
 				id,
 				userId,
-				kind: input.kind,
 				body: input.body,
 				mediaUrl: input.mediaUrl ?? null,
 				source: input.source,
@@ -61,19 +58,6 @@ export async function createScrap(userId: string, input: CreateScrapInput): Prom
 	});
 
 	return shape(row, peopleIds);
-}
-
-export async function updateScrapKind(
-	userId: string,
-	scrapId: string,
-	kind: ScrapKind,
-): Promise<void> {
-	await db
-		.updateTable("scraps")
-		.set({ kind })
-		.where("id", "=", scrapId)
-		.where("userId", "=", userId)
-		.execute();
 }
 
 export async function updateScrapBody(
@@ -242,7 +226,6 @@ async function hydrate(row: ScrapRow): Promise<Scrap> {
 function shape(row: ScrapRow, peopleIds: string[]): Scrap {
 	return {
 		id: row.id,
-		kind: row.kind,
 		body: row.body,
 		mediaUrl: row.mediaUrl ? toClientMediaUrl(row.mediaUrl) : null,
 		thumbnailUrl: row.mediaUrl ? toClientThumbnailUrl(row.mediaUrl) : null,

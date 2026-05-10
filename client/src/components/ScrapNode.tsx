@@ -16,10 +16,7 @@ export const ScrapNode: Component<{ id: string }> = (props) => {
 					persist={updateScrapPosition}
 					onClick={() => setEditingScrapId(props.id)}
 				>
-					<Show
-						when={s().thumbnailUrl}
-						fallback={<div class="scrap-card">{s().body ?? s().kind}</div>}
-					>
+					<Show when={s().thumbnailUrl} fallback={<div class="scrap-card">{s().body ?? ""}</div>}>
 						<HiResImage
 							class="scrap-photo"
 							thumbUrl={s().thumbnailUrl}

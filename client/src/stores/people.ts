@@ -23,6 +23,31 @@ export function upsertPerson(person: Person): void {
 	if (isNew) setPeopleStore("ids", (ids) => [...ids, person.id]);
 }
 
+export function removePerson(id: string): void {
+	if (!(id in peopleStore.byId)) return;
+	const { [id]: _removed, ...rest } = peopleStore.byId;
+	setPeopleStore({
+		byId: rest,
+		ids: peopleStore.ids.filter((x) => x !== id),
+	});
+}
+
+// Clear a featuredScrapId from any person referencing it. Mirrors the
+// `featured_scrap_id` ON DELETE SET NULL FK so the local copy stays honest
+// after a scrap is deleted.
+export function detachFeaturedScrap(scrapId: string): void {
+	const next = { ...peopleStore.byId };
+	let changed = false;
+	for (const id of peopleStore.ids) {
+		const p = next[id];
+		if (p?.featuredScrapId === scrapId) {
+			next[id] = { ...p, featuredScrapId: null };
+			changed = true;
+		}
+	}
+	if (changed) setPeopleStore("byId", next);
+}
+
 export function ingestPeoplePage(items: Person[], nextCursor: string | null): void {
 	const newById = { ...peopleStore.byId };
 	const newIds = [...peopleStore.ids];

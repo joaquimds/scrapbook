@@ -1,6 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
+import { deleteScrapsWithMedia } from "~/server/app/scraps.ts";
 import { type AuthEnv, getCurrentUserId } from "~/server/middleware/require-auth.ts";
 import {
 	createScrap,
@@ -8,23 +9,19 @@ import {
 	listScrapsPage,
 	setScrapPeople,
 	updateScrapBody,
-	updateScrapKind,
 	updateScrapMediaUrl,
 	updateScrapPosition,
 } from "~/server/repositories/scraps.ts";
 import { saveOriginal } from "~/server/services/media-storage/index.ts";
 import { decodeCursor, PageQuerySchema } from "~/server/utils/pagination.ts";
-import { ScrapKindSchema } from "~/shared/models/Scrap.ts";
 
 const CreateScrapSchema = z.object({
-	kind: ScrapKindSchema.default("quote"),
 	body: z.string().nullable(),
 	peopleIds: z.array(z.string()).default([]),
 });
 
 const PatchScrapSchema = z.object({
 	body: z.string().nullable().optional(),
-	kind: ScrapKindSchema.optional(),
 	peopleIds: z.array(z.string()).optional(),
 });
 
@@ -59,7 +56,6 @@ export const scrapsRoute = new Hono<AuthEnv>()
 		const userId = getCurrentUserId(c);
 		const data = c.req.valid("json");
 		const scrap = await createScrap(userId, {
-			kind: data.kind,
 			body: data.body,
 			source: "manual",
 			peopleIds: data.peopleIds,
@@ -73,11 +69,18 @@ export const scrapsRoute = new Hono<AuthEnv>()
 		if (!existing) return c.json({ error: "not_found" as const }, 404);
 		const data = c.req.valid("json");
 		if (data.body !== undefined) await updateScrapBody(userId, id, data.body);
-		if (data.kind !== undefined) await updateScrapKind(userId, id, data.kind);
 		if (data.peopleIds !== undefined) await setScrapPeople(id, data.peopleIds);
 		const updated = await findScrapById(userId, id);
 		if (!updated) return c.json({ error: "not_found" as const }, 404);
 		return c.json(updated);
+	})
+	.delete("/:id", async (c) => {
+		const userId = getCurrentUserId(c);
+		const id = c.req.param("id");
+		const existing = await findScrapById(userId, id);
+		if (!existing) return c.json({ error: "not_found" as const }, 404);
+		await deleteScrapsWithMedia(userId, [id]);
+		return c.json({ ok: true as const });
 	})
 	.patch("/:id/position", zValidator("json", PositionSchema), async (c) => {
 		const userId = getCurrentUserId(c);

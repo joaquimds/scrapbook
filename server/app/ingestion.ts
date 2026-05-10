@@ -1,4 +1,5 @@
 import { handleContactReply } from "~/server/app/reminders.ts";
+import { deleteScrapsWithMedia } from "~/server/app/scraps.ts";
 import {
 	deleteSession,
 	findActiveSession,
@@ -8,17 +9,13 @@ import { resolveOrCreatePeople, setFeaturedScrap } from "~/server/repositories/p
 import {
 	addScrapPeople,
 	createScrap,
-	deleteScraps,
 	findScrapByExternalMessageId,
 	findScrapById,
-	getRawMediaUrls,
 	updateScrapBody,
-	updateScrapKind,
 } from "~/server/repositories/scraps.ts";
-import { deleteOriginal, saveOriginal } from "~/server/services/media-storage/index.ts";
+import { saveOriginal } from "~/server/services/media-storage/index.ts";
 import { downloadTelegramFile, sendTelegramMessage } from "~/server/services/telegram.ts";
 import { logger } from "~/server/utils/logger.ts";
-import type { ScrapKind } from "~/shared/models/Scrap.ts";
 import { newId } from "~/shared/utils/id.ts";
 
 interface IncomingMedia {
@@ -74,15 +71,7 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 				{ from: msg.from, state: session.state, scrapIds: session.pendingScrapIds },
 				"cancelling scrap-add flow",
 			);
-			const mediaUrls = await getRawMediaUrls(msg.userId, session.pendingScrapIds);
-			for (const url of mediaUrls) {
-				try {
-					await deleteOriginal(url);
-				} catch (err) {
-					logger.error({ err, url }, "failed to delete media asset on cancel");
-				}
-			}
-			await deleteScraps(msg.userId, session.pendingScrapIds);
+			await deleteScrapsWithMedia(msg.userId, session.pendingScrapIds);
 			await deleteSession(session.id);
 			await sendTelegramMessage(msg.from, "Cancelled. Nothing saved.");
 		} else {
@@ -98,7 +87,6 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 			return;
 		}
 		const scrap = await createScrap(msg.userId, {
-			kind: "quote",
 			body: text,
 			source: "telegram",
 			externalMessageId: msg.messageSid,
@@ -141,39 +129,12 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		await upsertSession({
 			userId: msg.userId,
 			chatId: msg.from,
-			state: "awaitingImageKind",
-			pendingScrapIds: session.pendingScrapIds,
-		});
-		await sendTelegramMessage(
-			msg.from,
-			"What kind — photo, meme, or text? (text = a screenshot of writing)",
-		);
-		return;
-	}
-
-	if (session.state === "awaitingImageKind") {
-		const kind = parseImageKind(text);
-		if (!kind) {
-			logger.info({ from: msg.from, text }, "could not parse image kind — reprompting");
-			await sendTelegramMessage(
-				msg.from,
-				"Reply with 'photo', 'meme', or 'text' to categorise the image(s).",
-			);
-			return;
-		}
-		logger.info({ from: msg.from, kind, scrapIds: session.pendingScrapIds }, "updating scrap kind");
-		for (const scrapId of session.pendingScrapIds) {
-			await updateScrapKind(msg.userId, scrapId, kind);
-		}
-		await upsertSession({
-			userId: msg.userId,
-			chatId: msg.from,
 			state: "awaitingFriends",
 			pendingScrapIds: session.pendingScrapIds,
 		});
 		await sendTelegramMessage(
 			msg.from,
-			`Got it. Who ${session.pendingScrapIds.length > 1 ? "are these related to" : "is this related to"}? Reply with friend names (comma-separated), or "skip".`,
+			`Who ${session.pendingScrapIds.length > 1 ? "are these related to" : "is this related to"}? Reply with friend names (comma-separated), or "skip".`,
 		);
 		return;
 	}
@@ -209,7 +170,7 @@ export async function handleIncoming(msg: IncomingMessage): Promise<void> {
 		const onlyPerson = people.length === 1 ? people[0] : undefined;
 		if (onlyScrapId && onlyPerson) {
 			const scrap = await findScrapById(msg.userId, onlyScrapId);
-			if (scrap?.kind === "photo") {
+			if (scrap?.mediaUrl) {
 				await upsertSession({
 					userId: msg.userId,
 					chatId: msg.from,
@@ -284,7 +245,6 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 			logger.info({ id, mediaUrl, bytes: buffer.length }, "saved original media");
 			const scrap = await createScrap(msg.userId, {
 				id,
-				kind: "photo",
 				body: caption,
 				mediaUrl,
 				source: "telegram",
@@ -307,12 +267,12 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 		await upsertSession({
 			userId: msg.userId,
 			chatId: msg.from,
-			state: "awaitingImageKind",
+			state: "awaitingFriends",
 			pendingScrapIds: scrapIds,
 		});
 		await sendTelegramMessage(
 			msg.from,
-			`Saved ${noun}. What kind — photo, meme, or text? (text = a screenshot of writing)`,
+			`Saved ${noun}. Who ${scrapIds.length > 1 ? "are these related to" : "is this related to"}? Reply with friend names (comma-separated), or "skip".`,
 		);
 		return;
 	}
@@ -328,7 +288,6 @@ async function handleMedia(msg: IncomingMessage): Promise<void> {
 
 const CANCELLABLE_STATES = new Set([
 	"awaitingImageCaption",
-	"awaitingImageKind",
 	"awaitingFriends",
 	"awaitingFeaturedDecision",
 ]);
@@ -342,12 +301,4 @@ function parseFriendNames(text: string): string[] {
 		.split(/,| and /i)
 		.map((s) => s.trim())
 		.filter((s) => s.length > 0);
-}
-
-function parseImageKind(text: string): ScrapKind | undefined {
-	const t = text.trim().toLowerCase();
-	if (/^p(hoto)?$/.test(t)) return "photo";
-	if (/^m(eme)?$/.test(t)) return "meme";
-	if (/^(t|text|text_content|text content|screenshot)$/.test(t)) return "text_content";
-	return undefined;
 }

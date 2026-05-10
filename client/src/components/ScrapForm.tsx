@@ -2,26 +2,32 @@ import { type Component, createSignal, For, Show } from "solid-js";
 import {
 	createPerson,
 	createScrap,
+	deleteScrap,
 	updateScrap,
 	uploadScrapMedia,
 } from "~/client/src/api/services.ts";
-import { peopleStore, upsertPerson } from "~/client/src/stores/people.ts";
-import { scrapsStore, upsertScrap } from "~/client/src/stores/scraps.ts";
-import { ScrapKindSchema } from "~/shared/models/Scrap.ts";
-
-const KINDS = ScrapKindSchema.options;
+import {
+	detachFeaturedScrap,
+	peopleStore,
+	upsertPerson,
+} from "~/client/src/stores/people.ts";
+import { removeScrap, scrapsStore, upsertScrap } from "~/client/src/stores/scraps.ts";
+import type { Scrap } from "~/shared/models/Scrap.ts";
 
 interface ScrapFormProps {
 	scrapId: string | null;
 	onClose: () => void;
+	defaultPeopleIds?: string[];
+	onCreated?: (scrap: Scrap) => void;
 }
 
 export const ScrapForm: Component<ScrapFormProps> = (props) => {
 	const initial = () => (props.scrapId ? scrapsStore.byId[props.scrapId] : undefined);
 
 	const [body, setBody] = createSignal(initial()?.body ?? "");
-	const [kind, setKind] = createSignal<(typeof KINDS)[number]>(initial()?.kind ?? "quote");
-	const [peopleIds, setPeopleIds] = createSignal<string[]>(initial()?.peopleIds ?? []);
+	const [peopleIds, setPeopleIds] = createSignal<string[]>(
+		initial()?.peopleIds ?? props.defaultPeopleIds ?? [],
+	);
 	const [file, setFile] = createSignal<File | null>(null);
 	const [newPersonName, setNewPersonName] = createSignal("");
 	const [busy, setBusy] = createSignal(false);
@@ -59,11 +65,9 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 			let scrap = initial();
 			if (isEdit() && props.scrapId) {
 				const existing = initial();
-				const patch: { body?: string | null; kind?: (typeof KINDS)[number]; peopleIds?: string[] } =
-					{};
+				const patch: { body?: string | null; peopleIds?: string[] } = {};
 				const nextBody = body().length > 0 ? body() : null;
 				if (existing?.body !== nextBody) patch.body = nextBody;
-				if (existing?.kind !== kind()) patch.kind = kind();
 				const currIds = existing?.peopleIds ?? [];
 				const nextIds = peopleIds();
 				if (currIds.length !== nextIds.length || currIds.some((id) => !nextIds.includes(id))) {
@@ -80,7 +84,6 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 				}
 			} else {
 				scrap = await createScrap({
-					kind: kind(),
 					body: body().length > 0 ? body() : "",
 					peopleIds: peopleIds(),
 				});
@@ -90,11 +93,30 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 					scrap = await uploadScrapMedia(scrap.id, f);
 					upsertScrap(scrap);
 				}
+				props.onCreated?.(scrap);
 			}
 			props.onClose();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Save failed");
 		} finally {
+			setBusy(false);
+		}
+	}
+
+	async function onDelete() {
+		if (busy()) return;
+		const id = props.scrapId;
+		if (!id) return;
+		if (!confirm("Delete this scrap? This can't be undone.")) return;
+		setBusy(true);
+		setError(null);
+		try {
+			await deleteScrap(id);
+			detachFeaturedScrap(id);
+			removeScrap(id);
+			props.onClose();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Delete failed");
 			setBusy(false);
 		}
 	}
@@ -105,10 +127,11 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 	}
 
 	return (
-		<div class="scrap-form-overlay" aria-hidden="true" onClick={onOverlayClick}>
+		// biome-ignore lint/a11y/noStaticElementInteractions: There is no appropriate element role here
+		<div class="scrap-form-overlay" onClick={onOverlayClick}>
 			<form class="scrap-form" onSubmit={onSubmit}>
 				<div class="scrap-form-header">
-					<span>{isEdit() ? "edit scrap" : "new scrap"}</span>
+					<span>{isEdit() ? "Edit scrap" : "New scrap"}</span>
 					<button
 						type="button"
 						class="scrap-form-close"
@@ -130,19 +153,6 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 					disabled={busy()}
 					rows={4}
 				/>
-
-				<label class="scrap-form-label" for="scrap-form-kind">
-					Kind
-				</label>
-				<select
-					id="scrap-form-kind"
-					class="scrap-form-input"
-					value={kind()}
-					onChange={(e) => setKind(e.currentTarget.value as (typeof KINDS)[number])}
-					disabled={busy()}
-				>
-					<For each={KINDS}>{(k) => <option value={k}>{k}</option>}</For>
-				</select>
 
 				<label class="scrap-form-label" for="scrap-form-file">
 					Image
@@ -185,7 +195,7 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 					<input
 						class="scrap-form-input"
 						type="text"
-						placeholder="new person name"
+						placeholder="New person name"
 						value={newPersonName()}
 						onInput={(e) => setNewPersonName(e.currentTarget.value)}
 						disabled={busy()}
@@ -196,13 +206,23 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 						onClick={() => void onAddPerson()}
 						disabled={busy() || !newPersonName().trim()}
 					>
-						add person
+						Add person
 					</button>
 				</div>
 
 				<div class="scrap-form-actions">
+					<Show when={isEdit()}>
+						<button
+							type="button"
+							class="scrap-form-button scrap-form-button--delete"
+							onClick={() => void onDelete()}
+							disabled={busy()}
+						>
+							Delete
+						</button>
+					</Show>
 					<button type="submit" class="scrap-form-button" disabled={busy()}>
-						{busy() ? "…" : isEdit() ? "save" : "create"}
+						{busy() ? "…" : isEdit() ? "Save" : "Create"}
 					</button>
 				</div>
 

@@ -3,7 +3,6 @@ import { z } from "zod";
 export const IngestionStateSchema = z.enum([
 	"idle",
 	"awaitingImageCaption",
-	"awaitingImageKind",
 	"awaitingFriends",
 	"awaitingFeaturedDecision",
 	"awaitingContactReply",

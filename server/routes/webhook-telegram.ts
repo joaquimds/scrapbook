@@ -39,7 +39,7 @@ interface TelegramUpdate {
 
 // Telegram delivers an album as N separate updates that share a media_group_id.
 // We buffer them in memory for a short window, then dispatch as a single
-// IncomingMessage so the user is only prompted once for kind + tags.
+// IncomingMessage so the user is only prompted once for tags.
 const ALBUM_DEBOUNCE_MS = env.ALBUM_DEBOUNCE_MS;
 
 interface AlbumBuffer {

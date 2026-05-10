@@ -29,11 +29,7 @@ export const fetchPeoplePage = async (cursor: string | null, limit = 200) => {
 	return res.json();
 };
 
-export async function createScrap(input: {
-	kind?: Scrap["kind"];
-	body: string;
-	peopleIds?: string[];
-}) {
+export async function createScrap(input: { body: string; peopleIds?: string[] }) {
 	const res = await api.api.scraps.$post({ json: input });
 	if (!res.ok) handleErr("POST /api/scraps", res);
 	return res.json();
@@ -43,13 +39,17 @@ export async function updateScrap(
 	id: string,
 	patch: {
 		body?: string | null;
-		kind?: Scrap["kind"];
 		peopleIds?: string[];
 	},
 ): Promise<Scrap> {
 	const res = await api.api.scraps[":id"].$patch({ param: { id }, json: patch });
 	if (!res.ok) handleErr(`PATCH /api/scraps/${id}`, res);
 	return (await res.json()) as Scrap;
+}
+
+export async function deleteScrap(id: string): Promise<void> {
+	const res = await api.api.scraps[":id"].$delete({ param: { id } });
+	if (!res.ok) handleErr(`DELETE /api/scraps/${id}`, res);
 }
 
 export async function uploadScrapMedia(id: string, file: File): Promise<Scrap> {
@@ -68,6 +68,22 @@ export async function createPerson(name: string): Promise<Person> {
 	const res = await api.api.people.$post({ json: { name } });
 	if (!res.ok) handleErr("POST /api/people", res);
 	return (await res.json()) as Person;
+}
+
+export async function updatePerson(
+	id: string,
+	patch: { name?: string; featuredScrapId?: string | null },
+): Promise<Person> {
+	const res = await api.api.people[":id"].$patch({ param: { id }, json: patch });
+	if (!res.ok) handleErr(`PATCH /api/people/${id}`, res);
+	return (await res.json()) as Person;
+}
+
+export async function deletePerson(id: string): Promise<{ deletedScrapIds: string[] }> {
+	const res = await api.api.people[":id"].$delete({ param: { id } });
+	if (!res.ok) handleErr(`DELETE /api/people/${id}`, res);
+	const data = (await res.json()) as { ok: true; deletedScrapIds: string[] };
+	return { deletedScrapIds: data.deletedScrapIds };
 }
 
 export const updateScrapPosition = async (id: string, x: number, y: number): Promise<void> => {

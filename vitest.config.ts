@@ -4,11 +4,11 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
 	test: {
 		environment: "node",
-		setupFiles: ["tests/setup-env.ts", "tests/setup.ts"],
-		globalSetup: "tests/global-setup.ts",
+		setupFiles: ["tests/client/setup-env.ts", "tests/client/setup.ts"],
+		globalSetup: "tests/client/global-setup.ts",
 		pool: "forks",
 		testTimeout: 15000,
-		include: ["tests/**/*.test.ts"],
+		include: ["tests/client/**/*.test.ts"],
 	},
 	resolve: {
 		alias: {

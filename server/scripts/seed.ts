@@ -272,7 +272,6 @@ async function main(): Promise<void> {
 		const { mediaUrl } = await saveOriginal({ id, buffer, ext: "jpg" });
 		const scrap = await createScrap(userId, {
 			id,
-			kind: "photo",
 			body: `${person.name} in their natural habitat`,
 			mediaUrl,
 			source: "manual",
@@ -336,7 +335,6 @@ async function main(): Promise<void> {
 		const { mediaUrl } = await saveOriginal({ id, buffer, ext: "jpg" });
 		const created = await createScrap(userId, {
 			id,
-			kind: "photo",
 			body: pickRandom(PHOTO_CAPTIONS),
 			mediaUrl,
 			source: "manual",
@@ -356,7 +354,7 @@ async function main(): Promise<void> {
 	for (let i = 0; i < quoteCount; i++) {
 		const { peopleIds, clusterIdx } = tagsForIndex(photoCount + i);
 		const body = pickRandom(QUOTE_TEMPLATES);
-		const created = await createScrap(userId, { kind: "quote", body, source: "manual", peopleIds });
+		const created = await createScrap(userId, { body, source: "manual", peopleIds });
 		scrapPlacements.push({ id: created.id, clusterIdx });
 	}
 

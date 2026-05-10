@@ -38,6 +38,7 @@ export const NodeShell: Component<NodeShellProps> = (props) => {
 			{(p) => (
 				<div
 					ref={attach}
+					data-id={props.id}
 					class={`node ${props.class ?? ""}`}
 					style={{
 						left: `${p().x * LAYOUT_FACTOR}px`,

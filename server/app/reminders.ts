@@ -46,7 +46,9 @@ async function runDailyReminderForUser(userId: string, chatId: string): Promise<
 	}
 
 	const scrap = await pickReminderScrap(userId, person.id);
-	const caption = `Reach out to ${person.name}?`;
+	const prompt = `Reach out to ${person.name}?`;
+	const body = scrap?.body?.trim();
+	const message = body ? `${body}\n\n${prompt}` : prompt;
 	logger.info(
 		{ userId, personId: person.id, name: person.name, scrapId: scrap?.id ?? null },
 		"runDailyReminder: sending reminder",
@@ -54,13 +56,13 @@ async function runDailyReminderForUser(userId: string, chatId: string): Promise<
 
 	if (scrap?.mediaUrl) {
 		try {
-			await sendTelegramPhoto(chatId, scrap.mediaUrl, caption);
+			await sendTelegramPhoto(chatId, scrap.mediaUrl, message);
 		} catch (err) {
 			logger.error({ err, personId: person.id }, "photo send failed — falling back to text");
-			await sendTelegramMessage(chatId, caption);
+			await sendTelegramMessage(chatId, message);
 		}
 	} else {
-		await sendTelegramMessage(chatId, caption);
+		await sendTelegramMessage(chatId, message);
 	}
 
 	await recordReminderSent(userId, person.id, scrap?.id ?? null);

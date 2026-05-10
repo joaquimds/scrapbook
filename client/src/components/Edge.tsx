@@ -39,6 +39,8 @@ export const Edge: Component<{ source: string; target: string }> = (props) => {
 	};
 	return (
 		<line
+			data-source={props.source}
+			data-target={props.target}
 			x1={(ends()?.a.x ?? 0) * LAYOUT_FACTOR}
 			y1={(ends()?.a.y ?? 0) * LAYOUT_FACTOR}
 			x2={(ends()?.b.x ?? 0) * LAYOUT_FACTOR}

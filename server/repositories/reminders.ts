@@ -51,7 +51,9 @@ export async function pickPersonDueForReminder(
 	return row;
 }
 
-// A random photo tagged with the person, scoped to the user; null if none exists.
+// A random scrap tagged with the person, scoped to the user. Prefers scraps
+// with media; falls back to any scrap if none have media. Null if the person
+// has no scraps at all.
 export async function pickReminderScrap(
 	userId: string,
 	personId: string,
@@ -60,19 +62,30 @@ export async function pickReminderScrap(
 	mediaUrl: string | null;
 	body: string | null;
 } | null> {
-	const photo = await db
+	const withMedia = await db
 		.selectFrom("scraps as s")
 		.innerJoin("scrapPeople as sp", "sp.scrapId", "s.id")
 		.where("sp.personId", "=", personId)
 		.where("s.userId", "=", userId)
-		.where("s.kind", "=", "photo")
 		.where("s.mediaUrl", "is not", null)
 		.select(["s.id", "s.mediaUrl", "s.body"])
 		.orderBy(sql`random()`)
 		.limit(1)
 		.executeTakeFirst();
 
-	return photo ? shapeMedia(photo) : null;
+	if (withMedia) return shapeMedia(withMedia);
+
+	const anyScrap = await db
+		.selectFrom("scraps as s")
+		.innerJoin("scrapPeople as sp", "sp.scrapId", "s.id")
+		.where("sp.personId", "=", personId)
+		.where("s.userId", "=", userId)
+		.select(["s.id", "s.mediaUrl", "s.body"])
+		.orderBy(sql`random()`)
+		.limit(1)
+		.executeTakeFirst();
+
+	return anyScrap ? shapeMedia(anyScrap) : null;
 }
 
 function shapeMedia<T extends { mediaUrl: string | null }>(row: T): T {

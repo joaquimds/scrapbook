@@ -15,7 +15,8 @@
 		"db:migrate:list": "kysely migrate list",
 		"db:seed": "tsx server/scripts/seed.ts",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"test:e2e": "playwright test"
 	},
 	"dependencies": {
 		"@hono/node-server": "^2.0.0",
@@ -27,7 +28,7 @@
 		"d3-force": "^3.0.0",
 		"dotenv": "^17.4.2",
 		"hono": "^4.12.15",
-		"kysely": "^0.28.16",
+		"kysely": "^0.28.17",
 		"nanoid": "^5.1.9",
 		"pg": "^8.20.0",
 		"pino": "^10.3.1",
@@ -38,6 +39,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.13",
+		"@playwright/test": "^1.59.1",
 		"@types/d3-force": "^3.0.10",
 		"@types/node": "^25.6.0",
 		"@types/pg": "^8.20.0",

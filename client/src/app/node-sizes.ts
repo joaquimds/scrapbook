@@ -1,15 +1,9 @@
-import type { Simulation } from "d3-force";
 import { getSimulation } from "./force-simulation";
 
 interface Size {
 	w: number;
 	h: number;
 }
-
-// Permissive — node-sizes only ever calls alpha()/restart(), so it doesn't
-// need to know the simulation's node/link shape.
-// biome-ignore lint/suspicious/noExplicitAny: see above
-type Sim = Simulation<any, any>;
 
 const sizes: Record<string, Size> = {};
 

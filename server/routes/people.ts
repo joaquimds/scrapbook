@@ -1,11 +1,14 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
+import { deleteScrapsWithMedia } from "~/server/app/scraps.ts";
 import { type AuthEnv, getCurrentUserId } from "~/server/middleware/require-auth.ts";
 import {
 	createPerson,
+	deletePerson,
 	findPersonById,
 	listPeoplePage,
+	renamePerson,
 	setFeaturedScrap,
 	updatePersonPosition,
 } from "~/server/repositories/people.ts";
@@ -13,6 +16,7 @@ import { decodeCursor, PageQuerySchema } from "~/server/utils/pagination.ts";
 
 const CreatePersonSchema = z.object({ name: z.string().min(1) });
 const PatchPersonSchema = z.object({
+	name: z.string().min(1).optional(),
 	featuredScrapId: z.string().nullable().optional(),
 });
 const PositionSchema = z.object({
@@ -42,12 +46,27 @@ export const peopleRoute = new Hono<AuthEnv>()
 		const userId = getCurrentUserId(c);
 		const id = c.req.param("id");
 		const data = c.req.valid("json");
+		if (data.name !== undefined) {
+			await renamePerson(userId, id, data.name);
+		}
 		if (data.featuredScrapId !== undefined) {
 			await setFeaturedScrap(userId, id, data.featuredScrapId);
 		}
 		const person = await findPersonById(userId, id);
 		if (!person) return c.json({ error: "not_found" as const }, 404);
 		return c.json(person);
+	})
+	.delete("/:id", async (c) => {
+		const userId = getCurrentUserId(c);
+		const id = c.req.param("id");
+		const existing = await findPersonById(userId, id);
+		if (!existing) return c.json({ error: "not_found" as const }, 404);
+		const featuredScrapId = existing.featuredScrapId;
+		await deletePerson(userId, id);
+		if (featuredScrapId) {
+			await deleteScrapsWithMedia(userId, [featuredScrapId]);
+		}
+		return c.json({ ok: true as const, deletedScrapIds: featuredScrapId ? [featuredScrapId] : [] });
 	})
 	.patch("/:id/position", zValidator("json", PositionSchema), async (c) => {
 		const userId = getCurrentUserId(c);

@@ -104,6 +104,19 @@ export async function createPerson(userId: string, input: { name: string }): Pro
 	return strip(row);
 }
 
+export async function renamePerson(userId: string, personId: string, name: string): Promise<void> {
+	await db
+		.updateTable("people")
+		.set({ name })
+		.where("id", "=", personId)
+		.where("userId", "=", userId)
+		.execute();
+}
+
+export async function deletePerson(userId: string, personId: string): Promise<void> {
+	await db.deleteFrom("people").where("id", "=", personId).where("userId", "=", userId).execute();
+}
+
 export async function setFeaturedScrap(
 	userId: string,
 	personId: string,
