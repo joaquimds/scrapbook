@@ -19,9 +19,10 @@ test("edit scrap rewrites body, people, and photo, then deletes", async ({ page 
 	const createForm = page.locator(".scrap-form");
 	await createForm.waitFor();
 	await createForm.locator("#scrap-form-body").fill("edit-scrap first body");
-	await createForm.getByPlaceholder("new person name").fill("Eve");
-	await createForm.locator(".scrap-form-add-person button").click();
-	await expect(createForm.locator(".scrap-form-people").getByText("Eve")).toBeVisible();
+	const createPersonCombobox = createForm.locator(".scrap-form-combobox input");
+	await createPersonCombobox.fill("Eve");
+	await createPersonCombobox.press("Enter");
+	await expect(createForm.locator(".scrap-form-chip").filter({ hasText: "Eve" })).toBeVisible();
 	await createForm.locator("#scrap-form-file").setInputFiles({
 		name: "first.png",
 		mimeType: "image/png",
@@ -51,14 +52,12 @@ test("edit scrap rewrites body, people, and photo, then deletes", async ({ page 
 	await expect(editForm.locator("#scrap-form-body")).toHaveValue("edit-scrap first body");
 
 	await editForm.locator("#scrap-form-body").fill("edit-scrap second body");
-	await editForm
-		.locator(".scrap-form-people label")
-		.filter({ hasText: "Eve" })
-		.locator("input")
-		.uncheck();
-	await editForm.getByPlaceholder("new person name").fill("Frank");
-	await editForm.locator(".scrap-form-add-person button").click();
-	await expect(editForm.locator(".scrap-form-people").getByText("Frank")).toBeVisible();
+	await editForm.locator(".scrap-form-chip").filter({ hasText: "Eve" }).click();
+	await expect(editForm.locator(".scrap-form-chip").filter({ hasText: "Eve" })).toHaveCount(0);
+	const editPersonCombobox = editForm.locator(".scrap-form-combobox input");
+	await editPersonCombobox.fill("Frank");
+	await editPersonCombobox.press("Enter");
+	await expect(editForm.locator(".scrap-form-chip").filter({ hasText: "Frank" })).toBeVisible();
 
 	// Confirm the edit form acknowledges the existing image before we replace.
 	await expect(editForm.getByText(/uploading replaces it/i)).toBeVisible();

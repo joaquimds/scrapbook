@@ -14,20 +14,15 @@ test("scrap with two people renders edges to both", async ({ page }) => {
 	// 3. Fill the body, then add two people inline. The form auto-checks each
 	//    new person, so they're attached to the scrap on submit.
 	await form.locator("#scrap-form-body").fill("a memorable moment");
-	const personNameInput = form.getByPlaceholder("new person name");
-	const addPersonButton = form.locator(".scrap-form-add-person button");
+	const personCombobox = form.locator(".scrap-form-combobox input");
 
-	await personNameInput.fill("Alice");
-	await expect(personNameInput).toHaveValue("Alice");
-	await expect(addPersonButton).toBeEnabled();
-	await addPersonButton.click();
-	await expect(form.locator(".scrap-form-people").getByText("Alice")).toBeVisible();
+	await personCombobox.fill("Alice");
+	await personCombobox.press("Enter");
+	await expect(form.locator(".scrap-form-chip").filter({ hasText: "Alice" })).toBeVisible();
 
-	await personNameInput.fill("Bob");
-	await expect(personNameInput).toHaveValue("Bob");
-	await expect(addPersonButton).toBeEnabled();
-	await addPersonButton.click();
-	await expect(form.locator(".scrap-form-people").getByText("Bob")).toBeVisible();
+	await personCombobox.fill("Bob");
+	await personCombobox.press("Enter");
+	await expect(form.locator(".scrap-form-chip").filter({ hasText: "Bob" })).toBeVisible();
 
 	// 4. Submit. Form closes on success.
 	await form.locator("button[type='submit']").click();

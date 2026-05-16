@@ -1,4 +1,13 @@
-import { type Component, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import {
+	type Component,
+	createEffect,
+	createMemo,
+	createSignal,
+	For,
+	onCleanup,
+	Show,
+} from "solid-js";
+import { Portal } from "solid-js/web";
 import {
 	createPerson,
 	createScrap,
@@ -31,7 +40,7 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 	);
 	const initialFeaturedFor = (): string | null => {
 		const sid = props.scrapId;
-		if (!sid) return null;
+		if (!sid) return props.defaultPeopleIds?.[0] ?? null;
 		const ids = initial()?.peopleIds ?? [];
 		for (const pid of ids) {
 			if (peopleStore.byId[pid]?.featuredScrapId === sid) return pid;
@@ -77,9 +86,48 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 		setFile(null);
 		if (fileInputRef) fileInputRef.value = "";
 	}
-	const [newPersonName, setNewPersonName] = createSignal("");
+
 	const [busy, setBusy] = createSignal(false);
 	const [error, setError] = createSignal<string | null>(null);
+
+	const [query, setQuery] = createSignal("");
+	const [suggestionOpen, setSuggestionOpen] = createSignal(false);
+	const [highlightIdx, setHighlightIdx] = createSignal(0);
+	const [comboboxRect, setComboboxRect] = createSignal<{
+		left: number;
+		top: number;
+		width: number;
+	} | null>(null);
+	let comboboxInputRef: HTMLInputElement | undefined;
+	let blurTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function updateComboboxRect() {
+		if (!comboboxInputRef) return;
+		const r = comboboxInputRef.getBoundingClientRect();
+		setComboboxRect({ left: r.left, top: r.bottom + 2, width: r.width });
+	}
+
+	function openSuggestions() {
+		updateComboboxRect();
+		setSuggestionOpen(true);
+	}
+
+	function onAnyScrollOrResize() {
+		if (suggestionOpen()) updateComboboxRect();
+	}
+
+	if (typeof window !== "undefined") {
+		window.addEventListener("scroll", onAnyScrollOrResize, true);
+		window.addEventListener("resize", onAnyScrollOrResize);
+		onCleanup(() => {
+			window.removeEventListener("scroll", onAnyScrollOrResize, true);
+			window.removeEventListener("resize", onAnyScrollOrResize);
+		});
+	}
+
+	onCleanup(() => {
+		if (blurTimer) clearTimeout(blurTimer);
+	});
 
 	const isEdit = () => Boolean(props.scrapId);
 
@@ -89,25 +137,98 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 			.filter((p): p is NonNullable<typeof p> => Boolean(p)),
 	);
 
-	function togglePerson(id: string) {
-		setPeopleIds((curr) => (curr.includes(id) ? curr.filter((p) => p !== id) : [...curr, id]));
-		if (featuredFor() === id && !peopleIds().includes(id)) setFeaturedFor(null);
+	createEffect(() => {
+		// Re-anchor the dropdown when the chip row changes the input's position.
+		taggedPeople();
+		if (suggestionOpen()) updateComboboxRect();
+	});
+
+	const suggestions = createMemo(() => {
+		const q = query().trim().toLowerCase();
+		const taken = new Set(peopleIds());
+		const all = peopleStore.ids
+			.map((id) => peopleStore.byId[id])
+			.filter((p): p is NonNullable<typeof p> => Boolean(p))
+			.filter((p) => !taken.has(p.id));
+		const filtered = q.length === 0 ? all : all.filter((p) => p.name.toLowerCase().includes(q));
+		filtered.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+		return filtered.slice(0, 20);
+	});
+
+	const exactMatch = createMemo(() => {
+		const q = query().trim().toLowerCase();
+		if (!q) return null;
+		return suggestions().find((p) => p.name.toLowerCase() === q) ?? null;
+	});
+
+	function addPersonId(id: string) {
+		setPeopleIds((curr) => (curr.includes(id) ? curr : [...curr, id]));
 	}
 
-	async function onAddPerson() {
-		const name = newPersonName().trim();
+	function removePersonId(id: string) {
+		setPeopleIds((curr) => curr.filter((p) => p !== id));
+		if (featuredFor() === id) setFeaturedFor(null);
+	}
+
+	function pickSuggestion(idx: number) {
+		const list = suggestions();
+		const p = list[idx];
+		if (!p) return;
+		addPersonId(p.id);
+		setQuery("");
+		setHighlightIdx(0);
+	}
+
+	async function createPersonFromQuery() {
+		const name = query().trim();
 		if (!name || busy()) return;
 		setBusy(true);
 		setError(null);
 		try {
 			const person = await createPerson(name);
 			upsertPerson(person);
-			setPeopleIds((curr) => [...curr, person.id]);
-			setNewPersonName("");
+			addPersonId(person.id);
+			setQuery("");
+			setHighlightIdx(0);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "Failed to add person");
 		} finally {
 			setBusy(false);
+		}
+	}
+
+	function onComboboxKeyDown(e: KeyboardEvent) {
+		const list = suggestions();
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			openSuggestions();
+			if (list.length > 0) setHighlightIdx((i) => (i + 1) % list.length);
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			if (list.length > 0) setHighlightIdx((i) => (i - 1 + list.length) % list.length);
+		} else if (e.key === "Enter") {
+			if (query().trim().length === 0) return;
+			e.preventDefault();
+			const match = exactMatch();
+			if (match) {
+				addPersonId(match.id);
+				setQuery("");
+				setHighlightIdx(0);
+				return;
+			}
+			const highlighted = list[highlightIdx()];
+			if (highlighted) {
+				addPersonId(highlighted.id);
+				setQuery("");
+				setHighlightIdx(0);
+				return;
+			}
+			void createPersonFromQuery();
+		} else if (e.key === "Escape") {
+			if (suggestionOpen()) {
+				e.preventDefault();
+				setSuggestionOpen(false);
+			}
 		}
 	}
 
@@ -265,63 +386,88 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 				</Show>
 
 				<div class="scrap-form-label">People</div>
-				<div class="scrap-form-people">
-					<For each={peopleStore.ids}>
-						{(id) => {
-							const p = peopleStore.byId[id];
-							if (!p) return null;
-							const checked = () => peopleIds().includes(id);
-							return (
-								<label class="scrap-form-person">
-									<input
-										type="checkbox"
-										checked={checked()}
-										onChange={() => togglePerson(id)}
-										disabled={busy()}
-									/>
-									{p.name}
-								</label>
-							);
-						}}
-					</For>
-				</div>
-
-				<div class="scrap-form-add-person">
+				<Show when={taggedPeople().length > 0}>
+					<div class="scrap-form-chips">
+						<For each={taggedPeople()}>
+							{(p) => (
+								<button
+									type="button"
+									class="scrap-form-chip"
+									onClick={() => removePersonId(p.id)}
+									disabled={busy()}
+								>
+									{p.name} <span aria-hidden="true">×</span>
+								</button>
+							)}
+						</For>
+					</div>
+				</Show>
+				<div class="scrap-form-combobox">
 					<input
+						ref={comboboxInputRef}
 						class="scrap-form-input"
 						type="text"
-						placeholder="New person name"
-						value={newPersonName()}
-						onInput={(e) => setNewPersonName(e.currentTarget.value)}
+						placeholder="Find or add a person"
+						value={query()}
+						onInput={(e) => {
+							setQuery(e.currentTarget.value);
+							openSuggestions();
+							setHighlightIdx(0);
+						}}
+						onFocus={() => openSuggestions()}
+						onBlur={() => {
+							blurTimer = setTimeout(() => setSuggestionOpen(false), 120);
+						}}
+						onKeyDown={onComboboxKeyDown}
 						disabled={busy()}
 					/>
-					<button
-						type="button"
-						class="scrap-form-button"
-						onClick={() => void onAddPerson()}
-						disabled={busy() || !newPersonName().trim()}
-					>
-						Add person
-					</button>
+					<Show when={suggestionOpen() && suggestions().length > 0 && comboboxRect()}>
+						{(rect) => (
+							<Portal>
+								<div
+									class="scrap-form-combobox-list"
+									style={{
+										left: `${rect().left}px`,
+										top: `${rect().top}px`,
+										width: `${rect().width}px`,
+									}}
+								>
+									<For each={suggestions()}>
+										{(p, i) => (
+											<div
+												class="scrap-form-combobox-row"
+												aria-selected={i() === highlightIdx()}
+												onMouseEnter={() => setHighlightIdx(i())}
+												onMouseDown={(e) => {
+													e.preventDefault();
+													pickSuggestion(i());
+												}}
+											>
+												{p.name}
+											</div>
+										)}
+									</For>
+								</div>
+							</Portal>
+						)}
+					</Show>
 				</div>
 
-				<Show when={taggedPeople().length > 0}>
-					<label class="scrap-form-label" for="scrap-form-featured-for">
-						Featured scrap for
-					</label>
-					<select
-						id="scrap-form-featured-for"
-						class="scrap-form-input"
-						value={featuredFor() ?? ""}
-						onChange={(e) =>
-							setFeaturedFor(e.currentTarget.value === "" ? null : e.currentTarget.value)
-						}
-						disabled={busy()}
-					>
-						<option value="">(No-one)</option>
-						<For each={taggedPeople()}>{(p) => <option value={p.id}>{p.name}</option>}</For>
-					</select>
-				</Show>
+				<label class="scrap-form-label" for="scrap-form-featured-for">
+					Featured scrap for
+				</label>
+				<select
+					id="scrap-form-featured-for"
+					class="scrap-form-input"
+					value={featuredFor() ?? ""}
+					onChange={(e) =>
+						setFeaturedFor(e.currentTarget.value === "" ? null : e.currentTarget.value)
+					}
+					disabled={busy() || taggedPeople().length === 0}
+				>
+					<option value="">(No-one)</option>
+					<For each={taggedPeople()}>{(p) => <option value={p.id}>{p.name}</option>}</For>
+				</select>
 
 				<div class="scrap-form-actions">
 					<Show when={isEdit()}>

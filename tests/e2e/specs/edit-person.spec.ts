@@ -11,9 +11,10 @@ test("edit person renames and replaces featured photo with a new scrap", async (
 	const scrapForm = page.locator(".scrap-form");
 	await scrapForm.waitFor();
 	await scrapForm.locator("#scrap-form-body").fill("edit-person seed scrap");
-	await scrapForm.getByPlaceholder("new person name").fill("Carol");
-	await scrapForm.locator(".scrap-form-add-person button").click();
-	await expect(scrapForm.locator(".scrap-form-people").getByText("Carol")).toBeVisible();
+	const seedPersonCombobox = scrapForm.locator(".scrap-form-combobox input");
+	await seedPersonCombobox.fill("Carol");
+	await seedPersonCombobox.press("Enter");
+	await expect(scrapForm.locator(".scrap-form-chip").filter({ hasText: "Carol" })).toBeVisible();
 	await scrapForm.locator("button[type='submit']").click();
 	await expect(scrapForm).toHaveCount(0);
 

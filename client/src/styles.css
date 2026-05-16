@@ -352,26 +352,6 @@ body,
 	min-height: 80px;
 }
 
-.scrap-form-people {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	max-height: 160px;
-	overflow: auto;
-	border: 1px solid var(--color-fg);
-	background: var(--color-input);
-	padding: 6px 8px;
-	border-radius: 2px;
-	font-size: 13px;
-}
-
-.scrap-form-person {
-	display: flex;
-	gap: 6px;
-	align-items: center;
-	cursor: pointer;
-}
-
 .scrap-form-add-person {
 	display: flex;
 	gap: 6px;
@@ -379,6 +359,56 @@ body,
 
 .scrap-form-add-person .scrap-form-input {
 	flex: 1;
+}
+
+.scrap-form-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.scrap-form-chip {
+	font: inherit;
+	font-size: 12px;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	background: var(--color-card);
+	color: var(--color-scrap-fg);
+	border: 1px solid var(--color-scrap-border);
+	border-radius: 2px;
+	cursor: pointer;
+}
+
+.scrap-form-chip:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.scrap-form-combobox {
+	position: relative;
+}
+
+.scrap-form-combobox-list {
+	position: fixed;
+	max-height: 200px;
+	overflow: auto;
+	background: var(--color-input);
+	border: 1px solid var(--color-fg);
+	border-radius: 2px;
+	z-index: 30;
+	font-size: 13px;
+}
+
+.scrap-form-combobox-row {
+	padding: 6px 8px;
+	cursor: pointer;
+}
+
+.scrap-form-combobox-row[aria-selected="true"] {
+	background: var(--color-accent-blue);
+	color: var(--color-card);
 }
 
 .scrap-form-button {
