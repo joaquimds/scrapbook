@@ -1,4 +1,4 @@
-import { type Component, createMemo, createSignal, For, Show } from "solid-js";
+import { type Component, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import {
 	createPerson,
 	createScrap,
@@ -40,6 +40,43 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 	};
 	const [featuredFor, setFeaturedFor] = createSignal<string | null>(initialFeaturedFor());
 	const [file, setFile] = createSignal<File | null>(null);
+	let fileInputRef: HTMLInputElement | undefined;
+
+	const ACCEPTED_IMAGE_TYPES = new Set([
+		"image/jpeg",
+		"image/png",
+		"image/webp",
+		"image/gif",
+	]);
+
+	const previewUrl = createMemo<string | null>((prev) => {
+		if (prev) URL.revokeObjectURL(prev);
+		const f = file();
+		return f ? URL.createObjectURL(f) : null;
+	}, null);
+	onCleanup(() => {
+		const url = previewUrl();
+		if (url) URL.revokeObjectURL(url);
+	});
+
+	function onPaste(e: ClipboardEvent) {
+		const items = e.clipboardData?.items;
+		if (!items) return;
+		for (const item of items) {
+			if (item.kind !== "file") continue;
+			if (!ACCEPTED_IMAGE_TYPES.has(item.type)) continue;
+			const blob = item.getAsFile();
+			if (!blob) continue;
+			e.preventDefault();
+			setFile(blob);
+			return;
+		}
+	}
+
+	function clearFile() {
+		setFile(null);
+		if (fileInputRef) fileInputRef.value = "";
+	}
 	const [newPersonName, setNewPersonName] = createSignal("");
 	const [busy, setBusy] = createSignal(false);
 	const [error, setError] = createSignal<string | null>(null);
@@ -164,7 +201,7 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: There is no appropriate element role here
 		<div class="scrap-form-overlay" onClick={onOverlayClick}>
-			<form class="scrap-form" onSubmit={onSubmit}>
+			<form class="scrap-form" onSubmit={onSubmit} onPaste={onPaste}>
 				<div class="scrap-form-header">
 					<span>{isEdit() ? "Edit scrap" : "New scrap"}</span>
 					<button
@@ -194,12 +231,35 @@ export const ScrapForm: Component<ScrapFormProps> = (props) => {
 				</label>
 				<input
 					id="scrap-form-file"
+					ref={fileInputRef}
 					class="scrap-form-input"
 					type="file"
 					accept="image/jpeg,image/png,image/webp,image/gif"
 					onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)}
 					disabled={busy()}
 				/>
+				<div class="scrap-form-hint">Or paste an image (⌘V).</div>
+				<Show when={file()}>
+					{(_) => {
+						const f = file();
+						const url = previewUrl();
+						if (!f || !url) return null;
+						return (
+							<div class="scrap-form-file-preview">
+								<img class="scrap-form-file-thumb" src={url} alt="" />
+								<span class="scrap-form-file-name">{f.name || "Pasted image"}</span>
+								<button
+									type="button"
+									class="scrap-form-button scrap-form-button--outline"
+									onClick={clearFile}
+									disabled={busy()}
+								>
+									Clear
+								</button>
+							</div>
+						);
+					}}
+				</Show>
 				<Show when={isEdit() && initial()?.thumbnailUrl}>
 					<div class="scrap-form-hint">Has existing image — uploading replaces it.</div>
 				</Show>
